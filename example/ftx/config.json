@@ -1,0 +1,32 @@
+{
+    "RABBITMQ": {
+        "host": "127.0.0.1",
+        "port": 5672,
+        "username": "guest",
+        "password": "guest"
+    },
+    "ACCOUNTS": [
+        {
+            "platform": "ftx",
+            "account": "test",
+            "access_key": "xxxxxxxxxxxx",
+            "secret_key": "xxxxxxxxxxxx"
+        },
+        {
+            "platform": "ftx",
+            "account": "test/SUBACC1",
+            "access_key": "xxxxxxxxxxxx",
+            "secret_key": "xxxxxxxxxxxx",
+            "subaccount_name": "subacc1"
+        }
+    ],
+    "MARKETS": {
+        "ftx": {
+            "symbols": [
+                "BTC-PERP",
+                "ETH-PERP"
+            ]
+        }
+    },
+    "strategy": "my_test_strategy"
+}

@@ -1,0 +1,31 @@
+{
+    "RABBITMQ": {
+        "host": "127.0.0.1",
+        "port": 5672,
+        "username": "guest",
+        "password": "guest"
+    },
+    "ACCOUNTS": [
+        {
+            "platform": "huobi",
+            "account": "test/subacc2",
+            "access_key": "xxxxxxxxxxxx",
+            "secret_key": "xxxxxxxxxxxx"
+        },
+        {
+            "platform": "huobi",
+            "account": "test",
+            "access_key": "xxxxxxxxxxxx",
+            "secret_key": "xxxxxxxxxxxx"
+        }
+    ],
+    "MARKETS": {
+        "huobi": {
+            "symbols": [
+                "eoseth",
+                "trxeth"
+            ]
+        }
+    },
+    "strategy": "my_test_strategy"
+}

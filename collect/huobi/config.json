@@ -1,0 +1,22 @@
+{
+    "RABBITMQ": {
+        "host": "127.0.0.1",
+        "port": 5672,
+        "username": "guest",
+        "password": "guest"
+    },
+    "PLATFORMS": [
+        {
+            "platform": "huobi"
+        }
+    ],
+    "MARKETS": {
+        "huobi": {
+            "symbols": [
+                "eoseth",
+                "trxeth"
+            ]
+        }
+    },
+    "strategy": "huobi_collect"
+}
