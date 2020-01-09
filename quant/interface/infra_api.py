@@ -132,6 +132,12 @@ class InfraAPI:
         pass
 
     @staticmethod
+    async def get_next_trades(exchange, symbol, epoch_millisecond, n):
+        """ 根据当前毫秒数，往未来load若干个trade
+        """
+        pass
+
+    @staticmethod
     async def get_last_trade_oneday(exchange, symbol, date):
         """ 给定日期，找到当天的最后一笔trade
         """
@@ -152,6 +158,12 @@ class InfraAPI:
     @staticmethod
     async def get_prev_orderbooks(exchange, symbol, epoch_millisecond, n):
         """ 根据当前毫秒数，往过去load若干个orderbook
+        """
+        pass
+
+    @staticmethod
+    async def get_next_orderbooks(exchange, symbol, epoch_millisecond, n):
+        """ 根据当前毫秒数，往未来load若干个orderbook
         """
         pass
 
