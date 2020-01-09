@@ -31,35 +31,41 @@ def gateway_class(platform):
     Returns:
         交易网关类
     """
-    if platform == const.OKEX:
-        from quant.platform.okex import OKExTrade as T
+    if platform == const.DATAMATRIX:
+        from quant.datamatrix import DataMatrixTrader as T
+        return T
+    elif platform == const.BACKTEST:
+        from quant.backtest import BacktestTrader as T
+        return T
+    elif platform == const.OKEX:
+        from quant.platform.okex import OKExTrader as T
         return T
     elif platform == const.OKEX_MARGIN:
-        from quant.platform.okex_margin import OKExMarginTrade as T
+        from quant.platform.okex_margin import OKExMarginTrader as T
         return T
     elif platform == const.OKEX_FUTURE:
-        from quant.platform.okex_future import OKExFutureTrade as T
+        from quant.platform.okex_future import OKExFutureTrader as T
         return T
     elif platform == const.OKEX_SWAP:
-        from quant.platform.okex_swap import OKExSwapTrade as T
+        from quant.platform.okex_swap import OKExSwapTrader as T
         return T
     elif platform == const.BITMEX:
-        from quant.platform.bitmex import BitmexTrade as T
+        from quant.platform.bitmex import BitmexTrader as T
         return T
     elif platform == const.BINANCE:
-        from quant.platform.binance import BinanceTrade as T
+        from quant.platform.binance import BinanceTrader as T
         return T
     elif platform == const.BINANCE_FUTURE:
-        from quant.platform.binance_future import BinanceFutureTrade as T
+        from quant.platform.binance_future import BinanceFutureTrader as T
         return T
     elif platform == const.HUOBI:
         from quant.platform.huobi import HuobiTrader as T
         return T
-    elif platform == const.GATE:
-        from quant.platform.gate import GateTrade as T
-        return T
     elif platform == const.HUOBI_FUTURE:
         from quant.platform.huobi_future import HuobiFutureTrader as T
+        return T
+    elif platform == const.GATE:
+        from quant.platform.gate import GateTrader as T
         return T
     elif platform == const.FTX:
         from quant.platform.ftx import FTXTrader as T
@@ -78,6 +84,7 @@ class Trader(ExchangeGateway):
         Args:
             strategy: 策略名称,由哪个策略发起
             platform: 交易平台
+            databind: 这个字段只有在platform等于datamatrix或backtest的时候才有用,代表为矩阵操作或策略回测提供历史数据的交易所
             symbols: 策略需要订阅和交易的币种
             account: 交易所登陆账号,如果为空就只是订阅市场公共行情数据,不进行登录认证,所以也无法进行交易等
             access_key: 登录令牌

@@ -1,0 +1,37 @@
+{
+    "RABBITMQ": {
+        "host": "127.0.0.1",
+        "port": 5672,
+        "username": "guest",
+        "password": "guest"
+    },
+    "ACCOUNTS": [
+        {
+            "platform": "huobi",
+            "account": "test",
+            "access_key": "xxxxxxxxxxxx",
+            "secret_key": "xxxxxxxxxxxx"
+        },
+        {
+            "platform": "huobi_future",
+            "account": "test",
+            "access_key": "xxxxxxxxxxxx",
+            "secret_key": "xxxxxxxxxxxx"
+        }
+    ],
+    "MARKETS": {
+        "huobi": {
+            "symbols": [
+                "eoseth",
+                "trxeth"
+            ]
+        },
+        "huobi_future": {
+            "symbols": [
+                "BTC191227",
+                "ETH191227"
+            ]
+        }
+    },
+    "strategy": "my_test_strategy"
+}

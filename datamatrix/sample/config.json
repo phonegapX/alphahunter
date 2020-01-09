@@ -1,0 +1,22 @@
+{
+    "RABBITMQ": {
+        "host": "127.0.0.1",
+        "port": 5672,
+        "username": "guest",
+        "password": "guest"
+    },
+    "PLATFORMS": [
+        {
+            "platform": "ftx"
+        }
+    ],
+    "MARKETS": {
+        "ftx": {
+            "symbols": [
+                "BTC-PERP",
+                "ETH-PERP"
+            ]
+        }
+    },
+    "strategy": "datamatrix_demo"
+}

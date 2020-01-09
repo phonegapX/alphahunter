@@ -100,6 +100,7 @@ class Strategy(ExchangeGateway.ICallBack):
         Args:
             strategy: 策略名称,由哪个策略发起
             platform: 交易平台
+            databind: 这个字段只有在platform等于datamatrix或backtest的时候才有用,代表为矩阵操作或策略回测提供历史数据的交易所
             symbols: 策略需要订阅和交易的币种
             account: 交易所登陆账号,如果为空就只是订阅市场公共行情数据,不进行登录认证,所以也无法进行交易等
             access_key: 登录令牌

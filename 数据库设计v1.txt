@@ -1,0 +1,191 @@
+
+#交易所名称表
+TABLE t_exchange:
+    name -->类型:字符串. 取值如下:
+		"binance"  #币安现货交易所
+		"binance_future"  #币安期货交易所
+		"okex"  #OKEX现货交易所
+		"okex_future"  #OKEX期货交易所
+		"okex_swap"  #OKEX永续交易所
+		"bitmex"  #BitMEX交易所
+		"huobi"  #火币现货交易所
+		"huobi_future"  #火币期货交易所
+		...........
+
+=================================================================================================================================
+
+#交易符号表
+TABLE t_symbol:
+    exchange -->类型:字符串. 交易所名称,如上
+    name -->类型:字符串. 备注:对应交易所是什么符号,这里就是什么,不做任何转换,比如同一个`符号对`有些交易所是 btc/usdt 有些是btc_usdt,有些是btcusdt 
+    research_usable -->类型：boolean default True
+    trade_usable -->类型：boolean default True
+
+=================================================================================================================================
+
+#市场订单簿表, xxx是交易所名称 yyy是`符号对`,比如同一个`符号对`有些交易所是 btc/usdt,有些是btc_usdt,有些是btcusdt,不管什么格式统一转换为btcusdt这种,比如t_orderbook_binance_btcusdt
+TABLE t_orderbook_xxx_yyy:
+    dt -->类型:64位正整数. 备注:表示记录时间距离 Unix新纪元（1970年1月1日）的毫秒数
+    asksize1 -->类型:float
+    ...
+    asksize20 -->类型:float
+    askprice1 -->类型:float
+    ...
+    askprice20 -->类型:float
+    bidsize1 -->类型:float
+    ...
+    bidsize20 -->类型:float
+    bidprice1 -->类型:float
+    ...
+    bidprice20 -->类型:float
+
+=================================================================================================================================
+
+#市场逐笔成交记录表, xxx是交易所名称 yyy是`符号对`,比如同一个`符号对`有些交易所是 btc/usdt,有些是btc_usdt,有些是btcusdt,不管什么格式统一转换为btcusdt这种,比如t_trade_binance_btcusdt
+TABLE t_trade_xxx_yyy:
+    dt -->类型:64位正整数. 备注:表示我们自己的采集程序记录时间距离 Unix新纪元（1970年1月1日）的毫秒数
+    tradedt -->类型:64位正整数. 备注:表示交易所记录的成交时间距离 Unix新纪元（1970年1月1日）的毫秒数
+    tradeprice -->类型:float. 备注:成交价
+    volume -->类型:float. 备注:成交量
+    aomunt -->类型:float. 备注:成交额
+    direction -->类型:字符串. 备注:主买还是主卖，buy或者sell
+
+=================================================================================================================================
+
+#自合成k线记录表, xxx是交易所名称 yyy是`符号对`,比如同一个`符号对`有些交易所是 btc/usdt,有些是btc_usdt,有些是btcusdt,不管什么格式统一转换为btcusdt这种,比如t_kline_1min_binance_btcusdt
+TABLE t_kline_1min_xxx_yyy (如果是五分钟k线的话就是t_kline_5min_xxx_yyy):
+    begin_dt -->类型:64位正整数. 备注:表示bar开盘时间距离 Unix新纪元（1970年1月1日）的毫秒数
+    end_dt -->类型:64位正整数. 备注:表示bar收盘时间距离 Unix新纪元（1970年1月1日）的毫秒数
+    open -->类型:float. 备注:开盘价
+    high -->类型:float. 备注:最高价
+    low -->类型:float. 备注:最低价
+    close -->类型:float. 备注:收盘价
+    open_avg -->类型:float. 备注:开盘一段时间加权平均价
+    close_avg -->类型:float. 备注:收盘一段时间加权平均价
+    volume -->类型:float. 备注:成交量
+    aomunt -->类型:float. 备注:成交额
+    book_count -->类型:正整数. 备注:成交笔数
+    buy_book_count -->类型：正整数，备注：主动买成交笔数
+    sell_book_count -->类型：正整数，备注：主动卖成交笔数
+    buy_volume -->类型:float. 备注:主动买入的成交量
+    buy_amount -->类型:float. 备注:主动买入的成交额
+    sell_volume -->类型:float. 备注:主动卖出的成交量
+    sell_aomunt -->类型:float. 备注:主动卖出的成交额
+    sectional_high -->类型:float. 备注:今日开盘到现在最高价
+    sectional_low -->类型:float. 备注:今日开盘到现在最低价
+    sectional_volume -->类型:float. 备注:今日开盘到此时总成交量
+    sectional_aomunt -->类型:float. 备注:今日开盘到此时总成交额
+    sectional_book_count -->类型:正整数. 备注:今日开盘到此时总成交笔数
+    sectional_buy_book_count -->类型:正整数. 备注:今日开盘到此时主动买总成交笔数
+    sectional_sell_book_count -->类型:正整数. 备注:今日开盘到此时主动卖总成交笔数
+    sectional_buy_volume -->类型:float. 备注:今日开盘到此时主动买入的成交量
+    sectional_buy_amount -->类型:float. 备注:今日开盘到此时主动买入的成交额
+    sectional_sell_volume -->类型:float. 备注:今日开盘到此时主动卖出的成交量
+    sectional_sell_aomunt -->类型:float. 备注:今日开盘到此时主动卖出的成交额
+    prev_close_price -->类型:float. 备注:前一天收盘价
+    next_price -->类型:float. 备注:下一个Kline的open_avg
+    prev_price -->类型:float. 备注:前一个Kline的close_avg
+    lead_ret -->类型:float. 备注:相对于本bar,未来一个收益率
+    lag_ret -->类型:float. 备注:相对于本bar,之前一个收益率
+    usable: True if volume>0 else False
+
+==================================================================================================================================
+
+#符号的相关信息
+TABLE t_symbol_info:
+    exchange -->类型:字符串. 交易所名称
+    name -->类型:字符串. 备注:对应交易所是什么符号,这里就是什么,不做任何转换,比如同一个`符号对`有些交易所是 btc/usdt 有些是btc_usdt,有些是btcusdt
+    price_tick -->类型:float. 备注:`报价`每一跳的最小单位,也可以理解为`报价`精度或者`报价`增量
+    size_tick -->类型:float. 备注:`下单量`每一跳的最小单位,也可以理解为`下单量`精度或者`下单量`增量
+    size_limit -->类型:float. 备注:最小`下单量` (`下单量`指当订单类型为`限价单`或`sell-market`时,下单接口传的'quantity')
+    value_tick -->类型:float. 备注:`下单金额`每一跳的最小单位,也可以理解为`下单金额`精度或者`下单金额`增量
+    value_limit -->类型:float. 备注:最小`下单金额` (`下单金额`指当订单类型为`限价单`时,下单接口传入的(quantity * price).当订单类型为`buy-market`时,下单接口传的'quantity')
+
+==================================================================================================================================
+
+# 关于我们考虑的交易对，对于买来的数据，或者我们主动采集的数据，我们需要考虑以下symbol中research_usable为True的交易对，现阶段，我们有binance的数据，所以，我们考虑：
+
+      btcusdt, ethusdt, ltcusdt, etcusdt, xrpusdt, eosusdt, bchusdt, bsvusdt, trxusdt，adausdt
+
+      ethbtc, ltcbtc, etcbtc, xrpbtc, eosbtc, bchbtc, bsvbtc, trxbtc, adausdt
+
+===================================================================================================================================
+
+# 关于计算
+
+1. Kline时间隔点划分：
+   1min： 00:00:00.000 - 00:00:59.999 （这一根k线的begin_dt就是由00:00:00.000换算过来，end_dt就是由00:00:59.999换算过来）
+         00：01:00.000 - 00:01:59.999
+         ......
+
+   5min: 00:00:00.000 - 00:04:59.999
+         00:05:00.000 - 00:09:59.999
+         ......
+
+2. open = 当根k线从begin_dt开始之后的第一笔trade数据的tradeprice
+3. high = max(当根k线从begin_dt到end_dt之间的所有trade数据的tradeprice列表)
+4. low = min(当根k线从begin_dt到end_dt之间的所有trade数据的tradeprice列表)
+5. close = 当根k线end_dt之前的最后一笔trade数据的tradeprice
+6. open_avg:
+   1min: 这根k线前12秒的trade数据拿出来(比如：00:00:00.000 - 00:00:11.999)，
+         即 begin_dt <= t < begin_dt + 12 * 1000
+         open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+         open_avg_check = sum(trade price * volume) / sum(volume)
+   5min: 这根k线前1分钟的trade数据拿出来(比如：00:00:00.000 - 00:00:59.999)，
+         即 begin_dt <= t < begin_dt + 1 * 60 * 1000
+         begin_dt <= t < begin_dt + 1 * 60 * 1000
+         open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+         open_avg_check = sum(trade price * volume) / sum(volume)
+7. close_avg:
+   1min: 这根k线后12秒的trade数据拿出来(比如：00:00:48.000 - 00:00:59.999)，
+         即 begin_dt + 48 * 1000 <= t < begin_dt + 60 * 1000
+         open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+         open_avg_check = sum(trade price * volume) / sum(volume)
+   5min: 这根k线后1分钟的trade数据拿出来(比如：00:04:00.000 - 00:04:59.999)，
+         即 begin_dt + 4 * 60 * 1000 <= t < begin_dt + 5 * 60 * 1000
+         open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+         open_avg_check = sum(trade price * volume) / sum(volume)
+8. volume = begin_dt 和 end_dt之间的所有trade数据的volume之和
+9. amount = begin_dt 和 end_dt之间的所有的trade数据的amount之和
+   amount_check = sum(trade price * volume)
+
+10. book_count = begin_dt 和 end_dt之间的所有trade数据的数据个数
+11. buy_book_count = begin_dt 和 end_dt之间的所有方向主买的trade数据的数据个数
+12. sell_book_count = begin_dt 和 end_dt之间的所有方向主卖的trade数据的数据个数
+13. buy_volume = begin_dt 和 end_dt之间的所有trade数据的主买方向的volume之和
+14. buy_amount = begin_dt 和 end_dt之间的所有trade数据的主买方向的amount之和
+15. sell_volume = begin_dt 和 end_dt之间的所有trade数据的主卖方向的volume之和
+16. sell_amount = begin_dt 和 end_dt之间的所有trade数据的主卖方向的amount之和
+17. sectional_high = max(今日开盘至现在，所有k线的high)
+18. sectional_low = min(今日开盘至现在，所有k线的low)
+19. sectional_volume = 今日开盘至现在，所有k线volume之和
+20. sectional_amount = 今日开盘至现在，所有k线amount之和
+21. sectional_book_count = 今日开盘至现在，所有k线book_count之和
+22. sectional_buy_book_count = 今日开盘至现在，所有k线buy_book_count之和
+23. sectional_sell_book_count = 今日开盘至现在，所有k线sell_book_count之和
+24. sectional_buy_volume = 今日开盘至现在，所有k线buy_volume之和
+25. sectional_sell_volume = 今日开盘至现在，所有k线sell_volume之和
+26. sectional_buy_amount = 今日开盘至现在，所有k线buy_amount之和
+27. sectional_sell_amount = 今日开盘至现在，所有k线sell_amount之和
+28. prev_close_price = 前一天收盘前最后一笔trade数据的tradeprice
+29. next_price = 下一根k线的open_avg
+30. prev_price = 上一根k线的close_avg
+31. lead_ret = log(next_price / open_avg)
+32. lag_ret = log(close_avg / prev_price)
+33. usable = True if volume > 0 else False
+
+#=================================================================================================================================
+
+一些备注：
+1.对于数字货币,每天00:00:00.000算是开盘时间, 23:59:59.999收盘
+2.对于日期时间等，为了普适性，统一转换成unix时间戳用64位整数类型进行保存，不使用任何数据库自带的datetime类型，另外交易所分布世界各地，统计时间统一使用东八区时间
+3.统一小写
+4.我们的binance的数据中，trade数据里面，他的amount字段，其实对应的是我们的volume，它没有我们所说的amount
+5.暂时所有表都保存在同一个数据库当中,数据库名称为:db_market,数据库采用mongodb,数据库术语对比:
+    SQL术语/概念    MongoDB术语/概念   解释/说明
+    database        database          数据库
+    table           collection        表/集合
+    row             document	      行/文档
+    column          field             字段/域
+    index           index             索引
+    primary_key     primary_key       主键,MongoDB自动将_id字段设置为主键
