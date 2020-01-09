@@ -24,6 +24,8 @@ ORDER_ACTION_SELL = "SELL"  # Sell
 
 # Order status.
 ORDER_STATUS_NONE = "NONE"  # New created order, no status.
+#ORDER_STATUS_ADDED = "ADDED"  # The order that added to execution server successfully, when we
+#perform orders submission with an algorithmic model later.
 ORDER_STATUS_SUBMITTED = "SUBMITTED"  # The order that submitted to server successfully.
 ORDER_STATUS_PARTIAL_FILLED = "PARTIAL-FILLED"  # The order that filled partially.
 ORDER_STATUS_FILLED = "FILLED"  # The order that filled fully.

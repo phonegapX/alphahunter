@@ -105,6 +105,12 @@ class DataMatrixAPI:
         await InfraAPI.get_prev_klines(exchange, symbol, epoch_millisecond, n, kline_horizon)
 
     @staticmethod
+    async def get_next_klines(exchange, symbol, epoch_millisecond, n, kline_horizon):
+        """ 根据当前毫秒数，给定kline horizon，往未来load若干根kline
+        """
+        await InfraAPI.get_prev_klines(exchange, symbol, epoch_millisecond, n, kline_horizon)
+
+    @staticmethod
     async def get_last_kline_oneday(exchange, symbol, date, kline_horizon):
         """ 给定日期，给定kline horizon，找到当天的最后一根kline
         """
