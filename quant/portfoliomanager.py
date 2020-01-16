@@ -88,8 +88,9 @@ class PortfolioManager(object):
         """
         key = sha256(platform + account + symbol)
         d = self._orders[key]
-        for v in d.values():
-            yield v
+        return d.values()
+        #for v in d.values():
+        #    yield v
 
     def get_fills_by_order_no(platform, account, symbol, order_no) -> DefaultDict[str, Fill]:
         """从本地获取指定挂单的所有成交

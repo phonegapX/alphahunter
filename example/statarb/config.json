@@ -13,19 +13,11 @@
             "secret_key": "xxxxxxxxxxxx"
         },
         {
-            "platform": "huobi",
-            "account": "test",
+            "platform": "huobi_future",
+            "account": "test/subacc2",
             "access_key": "xxxxxxxxxxxx",
             "secret_key": "xxxxxxxxxxxx"
         }
     ],
-    "MARKETS": {
-        "huobi": {
-            "symbols": [
-                "eoseth",
-                "trxeth"
-            ]
-        }
-    },
     "strategy": "my_test_strategy"
 }

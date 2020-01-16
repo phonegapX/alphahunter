@@ -24,6 +24,7 @@ from quant.gateway import ExchangeGateway
 from quant.trader import Trader
 from quant.strategy import Strategy
 from quant.utils.decorator import async_method_locker
+from quant.interface.model_api import ModelAPI
 
 
 class DemoStrategy(Strategy):
@@ -37,20 +38,19 @@ class DemoStrategy(Strategy):
         
         #=====================================================
         #创建第一个交易接口
-        self.platform = config.accounts[0]["platform"]
-        self.account = config.accounts[0]["account"]
-        self.access_key = config.accounts[0]["access_key"]
-        self.secret_key = config.accounts[0]["secret_key"]
-        target = config.markets[self.platform]
-        self.symbols = target["symbols"]
+        self.platformHB = config.accounts[0]["platform"]
+        self.accountHB = config.accounts[0]["account"]
+        access_key = config.accounts[0]["access_key"]
+        secret_key = config.accounts[0]["secret_key"]
+        
         # 交易模块参数
         params = {
             "strategy": self.strategy,
-            "platform": self.platform,
-            "symbols": self.symbols,
-            "account": self.account,
-            "access_key": self.access_key,
-            "secret_key": self.secret_key,
+            "platform": self.platformHB,
+            "symbols": "ethusdt",
+            "account": self.accountHB,
+            "access_key": access_key,
+            "secret_key": secret_key,
 
             "enable_kline_update": True,
             "enable_orderbook_update": True,
@@ -61,21 +61,59 @@ class DemoStrategy(Strategy):
             "enable_position_update": True,
             "enable_asset_update": True,
 
-            "direct_kline_update": False,
-            "direct_orderbook_update": False,
-            "direct_trade_update": False,
-            "direct_ticker_update": False
+            "direct_kline_update": True,
+            "direct_orderbook_update": True,
+            "direct_trade_update": True,
+            "direct_ticker_update": True
         }
-        self.trader = self.create_gateway(**params)
+        self.traderHB = self.create_gateway(**params)
+        
+        #=====================================================
+        #创建第二个交易接口
+        self.platformHBF = config.accounts[1]["platform"]
+        self.accountHBF = config.accounts[1]["account"]
+        access_key = config.accounts[1]["access_key"]
+        secret_key = config.accounts[1]["secret_key"]
+        
+        # 交易模块参数
+        params = {
+            "strategy": self.strategy,
+            "platform": self.platformHBF,
+            "symbols": "ETH191227",
+            "account": self.accountHBF,
+            "access_key": access_key,
+            "secret_key": secret_key,
+
+            "enable_kline_update": True,
+            "enable_orderbook_update": True,
+            "enable_trade_update": True,
+            "enable_ticker_update": True,
+            "enable_order_update": True,
+            "enable_fill_update": True,
+            "enable_position_update": True,
+            "enable_asset_update": True,
+
+            "direct_kline_update": True,
+            "direct_orderbook_update": True,
+            "direct_trade_update": True,
+            "direct_ticker_update": True
+        }
+        self.traderHBF = self.create_gateway(**params)
+        
 
         # 注册定时器
         self.enable_timer()  # 每隔1秒执行一次回调
+        
+        #==================================================================
+        self._orderbookHB = None
+        self._orderbookHBF = None
+        self._last_ts = 0
 
     async def on_time(self):
         """ 每秒钟执行一次. 因为是异步并发架构,这个函数执行的时候交易通道链接不一定已经建立好
         """
-        if not hasattr(self, "just_once"):
-            self.just_once = 1
+        #if not hasattr(self, "just_once"):
+        #    self.just_once = 1
             #xx = self.get_orders(self.trader, "ETH-PERP")
             #xx = self.get_position(self.trader1, "ETH-PERP")
             #xx = self.get_assets(self.trader)
@@ -85,10 +123,10 @@ class DemoStrategy(Strategy):
             #order1 = Strategy.TOrder(self.trader, "ETH-PERP", ORDER_ACTION_SELL, "351", "-0.02")
             #order2 = Strategy.TOrder(self.trader1, "ETH-PERP", ORDER_ACTION_SELL, "352", "-0.03")
             #xx = self.create_pair_order(order1, order2)
-            xx = self.get_symbol_info(self.trader, "trxeth")
-            yy, zz = await xx
+        #    xx = self.get_symbol_info(self.trader, "trxeth")
+        #    yy, zz = await xx
         
-        logger.info("on_time ...", caller=self)
+        #logger.info("on_time ...", caller=self)
         #new_price = tools.float_to_str(price)  # 将价格转换为字符串，保持精度
 
     async def on_init_success_callback(self, success: bool, error: Error, **kwargs):
@@ -96,47 +134,93 @@ class DemoStrategy(Strategy):
         """
         logger.info("on_init_success_callback:", success, caller=self)
 
-    async def on_kline_update_callback(self, kline: Kline):
-        """ 市场K线更新
-        """
-        logger.info("kline:", kline, caller=self)
 
-    @async_method_locker("DemoStrategy.can_do_open_close_pos_demo.locker", False)
-    async def can_do_open_close_pos_demo(self):
-        """
-        开平仓逻辑应该独立放到一个函数里面,并且加上'不等待类型的锁',就像本函数演示的这样.
-        因为为了最大的时效性,框架采用的是异步架构,假如这里还在处理过程中,新的回调通知来了,那样就会
-        引起重复开平仓,所以就把开平仓的过程加上'不等待类型的锁',这样新的回调通知来了,这里又被调用的情况下,
-        因为有'不等待类型的锁',所以会直接跳过(忽略)本函数,这样就不会导致重复执行开平仓的动作.
-        记住这里是'不等待类型的锁'(装饰器第二个参数为False),而不是`等待类型的锁`,因为我们不需要等待,假如等待的话还是会重复开平仓(而且行情也过期了)
-        比如下面模拟要处理3秒,现实中是有可能发生的,比如网络或者交易所繁忙的时候.
-        """
-        await asyncio.sleep(3)
+
+    def datactrl(self):
+        self.mpHB.pop(0)
+        self.mpHBF.pop(0)
+
+    def fit_parameters(self, length):
+        z = None
+        if len(self.mpHB) >= length and len(self.mpHBF) >= length:
+                mpHB = np.array(self.mpHB)
+                mpHBF = np.array(self.mpHBF)
+                spread = mpHBF - mpHB
+                
+                
+                #asset = self.pm.get_asset(self.platformHB, self.accountHB)
+                #free_eth = asset.assets["eth"]["free"]
+                #free_usdt = asset.assets["usdt"]["free"]
+                #posHBF = self.pm.get_position(self.platformHBF, self.accountHBF, "ETH191227")
+                
+                #if abs(posSpot) > 0.2 and abs(posSwap) > 0.2:
+                #    z   = (spread[-1] - self.mu)/self.sigma
+                #    self.datactrl()
+                #    return z
+                if sm.tsa.stattools.adfuller(spread)[1] < 0.05 and \
+                   sm.tsa.stattools.adfuller(spread[int(length/2):])[1] < 0.05 and \
+                   sm.tsa.stattools.adfuller(spread[int(length/3):])[1] < 0.05:
+                    model     = AR(spread)
+                    model_fit = model.fit(1)
+                    a, b      = model_fit.params
+                    if b < 1:
+                        self.theta     = 1-b
+                        self.mu        = a/(1-b)
+                        self.epsilon   = spread[1:]-(a+b*spread[:-1])
+                        self.sigma     = np.sqrt((np.std(self.epsilon)**2)/(2*self.theta))
+                        z              = (spread[-1] - self.mu)/self.sigma
+                        #print(z, len(spread))
+                self.datactrl()
+        return z
+
+
+
+
+
+  
+
+
+
 
     async def on_orderbook_update_callback(self, orderbook: Orderbook):
         """ 订单薄更新
         """
         logger.info("orderbook:", orderbook, caller=self)
-        #ask1_price = float(orderbook.asks[0][0])  # 卖一价格
-        #bid1_price = float(orderbook.bids[0][0])  # 买一价格
-        #self.current_price = (ask1_price + bid1_price) / 2  # 为了方便，这里假设盘口价格为 卖一 和 买一 的平均值
-        """
-        假设策略在本回调函数里面判断开平仓条件,并且条件达到可以进行开平仓的情况下,最好是把接下来的开平仓逻辑单独
-        放在一个函数里面,并且加上'不等待类型的锁',比如下面这个函数这样.
-        """
-        #if 开平仓条件达到:
-        await self.can_do_open_close_pos_demo()
-        print("##################################")
+        
+        
+        #if self.pm.get_orders(self.platformHB, self.accountHB, self.symbolsHB) or self.pm.get_orders(self.platformHBF, self.accountHBF, self.symbolsHBF):
+        #    return        
+        
+        if orderbook.platform == self.platformHB:
+            self._orderbookHB = orderbook
+        elif orderbook.platform == self.platformHBF:
+            self._orderbookHBF = orderbook
+            
+            
+        nowts = ModelAPI.timenow_unix_time()
+        
+        if (nowTicks-self._last_ts > 1000):
+            if self._orderbookHB and self._orderbookHBF and \
+               (nowts - self._orderbookHB.timestamp < 2000) and (nowts - self._orderbookHBF.timestamp < 2000):
+                apHB = self._orderbookHB.asks[0][0]
+                bpHB = self._orderbookHB.bids[0][0]
+                self.mpHB.append((apHB+bpHB)/2)
+                apHBF = self._orderbookHBF.asks[0][0]
+                bpHBF = self._orderbookHBF.bids[0][0]
+                self.mpHBF.append((apHBF+bpHBF)/2)
 
-    async def on_trade_update_callback(self, trade: Trade):
-        """ 市场最新成交更新
-        """
-        logger.info("trade:", trade, caller=self)
-
-    async def on_ticker_update_callback(self, ticker: Ticker):
-        """ 市场行情tick更新
-        """
-        logger.info("ticker:", ticker, caller=self)
+                z = self.fit_parameters(3600)
+                self.trade(z, 10, 6, 1.96)
+                
+                self._last_ts = nowts
+                
+                
+                
+            
+            
+    async def on_kline_update_callback(self, kline: Kline): ...
+    async def on_trade_update_callback(self, trade: Trade): ...
+    async def on_ticker_update_callback(self, ticker: Ticker): ...
 
     async def on_order_update_callback(self, order: Order):
         """ 订单状态更新

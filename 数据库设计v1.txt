@@ -53,13 +53,16 @@ TABLE t_trade_xxx_yyy:
 =================================================================================================================================
 
 #自合成k线记录表, xxx是交易所名称 yyy是`符号对`,比如同一个`符号对`有些交易所是 btc/usdt,有些是btc_usdt,有些是btcusdt,不管什么格式统一转换为btcusdt这种,比如t_kline_1min_binance_btcusdt
-TABLE t_kline_1min_xxx_yyy (如果是五分钟k线的话就是t_kline_5min_xxx_yyy):
+TABLE t_kline_1min_xxx_yyy (如果是五分钟k线的话就是t_kline_5min_xxx_yyy，如果是十秒钟k线的话就是t_kline_10s_xxx_yyy):
     begin_dt -->类型:64位正整数. 备注:表示bar开盘时间距离 Unix新纪元（1970年1月1日）的毫秒数
     end_dt -->类型:64位正整数. 备注:表示bar收盘时间距离 Unix新纪元（1970年1月1日）的毫秒数
     open -->类型:float. 备注:开盘价
     high -->类型:float. 备注:最高价
     low -->类型:float. 备注:最低价
     close -->类型:float. 备注:收盘价
+    avg_price -->类型:float. 备注:k线内加权平均价
+    buy_avg_price -->类型:float. 备注:k线内主买加权平均价
+    sell_avg_price -->类型:float. 备注:k线内主卖加权平均价
     open_avg -->类型:float. 备注:开盘一段时间加权平均价
     close_avg -->类型:float. 备注:收盘一段时间加权平均价
     volume -->类型:float. 备注:成交量
@@ -75,6 +78,9 @@ TABLE t_kline_1min_xxx_yyy (如果是五分钟k线的话就是t_kline_5min_xxx_y
     sectional_low -->类型:float. 备注:今日开盘到现在最低价
     sectional_volume -->类型:float. 备注:今日开盘到此时总成交量
     sectional_aomunt -->类型:float. 备注:今日开盘到此时总成交额
+    sectional_avg_price -->类型:float. 备注:今日开盘到此时加权平均价
+    sectional_buy_avg_price -->类型:float. 备注:今日开盘到此时主买加权平均价
+    sectional_sell_avg_price -->类型:float. 备注:今日开盘到此时主卖加权平均价
     sectional_book_count -->类型:正整数. 备注:今日开盘到此时总成交笔数
     sectional_buy_book_count -->类型:正整数. 备注:今日开盘到此时主动买总成交笔数
     sectional_sell_book_count -->类型:正整数. 备注:今日开盘到此时主动卖总成交笔数
@@ -107,14 +113,18 @@ TABLE t_symbol_info:
 
       btcusdt, ethusdt, ltcusdt, etcusdt, xrpusdt, eosusdt, bchusdt, bsvusdt, trxusdt，adausdt
 
-      ethbtc, ltcbtc, etcbtc, xrpbtc, eosbtc, bchbtc, bsvbtc, trxbtc, adausdt
+      ethbtc, ltcbtc, etcbtc, xrpbtc, eosbtc, bchbtc, bsvbtc, trxbtc, adabtc
 
 ===================================================================================================================================
 
 # 关于计算
 
 1. Kline时间隔点划分：
-   1min： 00:00:00.000 - 00:00:59.999 （这一根k线的begin_dt就是由00:00:00.000换算过来，end_dt就是由00:00:59.999换算过来）
+   10s： 00:00:00.000 - 00:00:9.999 （这一根k线的begin_dt就是由00:00:00.000换算过来，end_dt就是由00:00:9.999换算过来）
+         00：00:10.000 - 00:00:19.999
+         ......
+
+   1min： 00:00:00.000 - 00:00:59.999 
          00：01:00.000 - 00:01:59.999
          ......
 
@@ -126,7 +136,14 @@ TABLE t_symbol_info:
 3. high = max(当根k线从begin_dt到end_dt之间的所有trade数据的tradeprice列表)
 4. low = min(当根k线从begin_dt到end_dt之间的所有trade数据的tradeprice列表)
 5. close = 当根k线end_dt之前的最后一笔trade数据的tradeprice
-6. open_avg:
+6. avg_price = 这根k线之内，所有trade数据的amount之和 / 所有trade数据的volume之和
+7. buy_avg_price = 这根k线之内，所有主买trade数据的amount之和 / 所有trade数据的volume之和
+8. sell_avg_price = 这根k线之内，所有主卖trade数据的amount之和 / 所有trade数据的volume之和
+9. open_avg:
+   10s: 这根k线前2秒的trade数据拿出来(比如：00:00:00.000 - 00:00:1.999)，
+         即 begin_dt <= t < begin_dt + 2 * 1000
+         open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+         open_avg_check = sum(trade price * volume) / sum(volume)
    1min: 这根k线前12秒的trade数据拿出来(比如：00:00:00.000 - 00:00:11.999)，
          即 begin_dt <= t < begin_dt + 12 * 1000
          open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
@@ -136,7 +153,11 @@ TABLE t_symbol_info:
          begin_dt <= t < begin_dt + 1 * 60 * 1000
          open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
          open_avg_check = sum(trade price * volume) / sum(volume)
-7. close_avg:
+10. close_avg:
+   10s: 这根k线后2秒的trade数据拿出来(比如：00:00:8.000 - 00:00:9.999)，
+         即 begin_dt + 8 * 1000 <= t < begin_dt + 10 * 1000
+         open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+         open_avg_check = sum(trade price * volume) / sum(volume)
    1min: 这根k线后12秒的trade数据拿出来(比如：00:00:48.000 - 00:00:59.999)，
          即 begin_dt + 48 * 1000 <= t < begin_dt + 60 * 1000
          open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
@@ -145,41 +166,43 @@ TABLE t_symbol_info:
          即 begin_dt + 4 * 60 * 1000 <= t < begin_dt + 5 * 60 * 1000
          open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
          open_avg_check = sum(trade price * volume) / sum(volume)
-8. volume = begin_dt 和 end_dt之间的所有trade数据的volume之和
-9. amount = begin_dt 和 end_dt之间的所有的trade数据的amount之和
-   amount_check = sum(trade price * volume)
-
-10. book_count = begin_dt 和 end_dt之间的所有trade数据的数据个数
-11. buy_book_count = begin_dt 和 end_dt之间的所有方向主买的trade数据的数据个数
-12. sell_book_count = begin_dt 和 end_dt之间的所有方向主卖的trade数据的数据个数
-13. buy_volume = begin_dt 和 end_dt之间的所有trade数据的主买方向的volume之和
-14. buy_amount = begin_dt 和 end_dt之间的所有trade数据的主买方向的amount之和
-15. sell_volume = begin_dt 和 end_dt之间的所有trade数据的主卖方向的volume之和
-16. sell_amount = begin_dt 和 end_dt之间的所有trade数据的主卖方向的amount之和
-17. sectional_high = max(今日开盘至现在，所有k线的high)
-18. sectional_low = min(今日开盘至现在，所有k线的low)
-19. sectional_volume = 今日开盘至现在，所有k线volume之和
-20. sectional_amount = 今日开盘至现在，所有k线amount之和
-21. sectional_book_count = 今日开盘至现在，所有k线book_count之和
-22. sectional_buy_book_count = 今日开盘至现在，所有k线buy_book_count之和
-23. sectional_sell_book_count = 今日开盘至现在，所有k线sell_book_count之和
+11. volume = begin_dt 和 end_dt之间的所有trade数据的volume之和
+12. amount = begin_dt 和 end_dt之间的所有的trade数据的amount之和
+    amount_check = sum(trade price * volume)
+13. book_count = begin_dt 和 end_dt之间的所有trade数据的数据个数
+14. buy_book_count = begin_dt 和 end_dt之间的所有方向主买的trade数据的数据个数
+15. sell_book_count = begin_dt 和 end_dt之间的所有方向主卖的trade数据的数据个数
+16. buy_volume = begin_dt 和 end_dt之间的所有trade数据的主买方向的volume之和
+17. buy_amount = begin_dt 和 end_dt之间的所有trade数据的主买方向的amount之和
+18. sell_volume = begin_dt 和 end_dt之间的所有trade数据的主卖方向的volume之和
+19. sell_amount = begin_dt 和 end_dt之间的所有trade数据的主卖方向的amount之和
+20. sectional_high = max(今日开盘至现在，所有k线的high)
+21. sectional_low = min(今日开盘至现在，所有k线的low)
+22. sectional_volume = 今日开盘至现在，所有k线volume之和
+23. sectional_amount = 今日开盘至现在，所有k线amount之和
 24. sectional_buy_volume = 今日开盘至现在，所有k线buy_volume之和
 25. sectional_sell_volume = 今日开盘至现在，所有k线sell_volume之和
 26. sectional_buy_amount = 今日开盘至现在，所有k线buy_amount之和
 27. sectional_sell_amount = 今日开盘至现在，所有k线sell_amount之和
-28. prev_close_price = 前一天收盘前最后一笔trade数据的tradeprice
-29. next_price = 下一根k线的open_avg
-30. prev_price = 上一根k线的close_avg
-31. lead_ret = log(next_price / open_avg)
-32. lag_ret = log(close_avg / prev_price)
-33. usable = True if volume > 0 else False
+28. sectional_avg_price = 今日开盘到此时加权平均价， sectional_amount / sectional_volume
+29. sectional_buy_avg_price = 今日开盘到此时主买加权平均价, sectional_buy_amount / sectional_buy_volume
+30. sectional_sell_avg_price = 今日开盘到此时主卖加权平均价, sectional_sell_amount / sectional_sell_volume
+31. sectional_book_count = 今日开盘至现在，所有k线book_count之和
+32. sectional_buy_book_count = 今日开盘至现在，所有k线buy_book_count之和
+33. sectional_sell_book_count = 今日开盘至现在，所有k线sell_book_count之和
+34. prev_close_price = 前一天收盘前最后一笔trade数据的tradeprice
+35. next_price = 下一根k线的open_avg
+36. prev_price = 上一根k线的close_avg
+37. lead_ret = log(next_price / open_avg)
+38. lag_ret = log(close_avg / prev_price)
+39. usable = True if volume > 0 else False
 
 #=================================================================================================================================
 
 一些备注：
 1.对于数字货币,每天00:00:00.000算是开盘时间, 23:59:59.999收盘
 2.对于日期时间等，为了普适性，统一转换成unix时间戳用64位整数类型进行保存，不使用任何数据库自带的datetime类型，另外交易所分布世界各地，统计时间统一使用东八区时间
-3.统一小写
+3.数据库表名，字段名等统一小写
 4.我们的binance的数据中，trade数据里面，他的amount字段，其实对应的是我们的volume，它没有我们所说的amount
 5.暂时所有表都保存在同一个数据库当中,数据库名称为:db_market,数据库采用mongodb,数据库术语对比:
     SQL术语/概念    MongoDB术语/概念   解释/说明
