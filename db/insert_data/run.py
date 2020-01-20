@@ -1,19 +1,14 @@
 # -*- coding: utf-8 -*-
 import os
-import sys
 import shutil
 import pandas
 import time
 import datetime
 import asyncio
 
-from pymongo import InsertOne
 from zipfile import ZipFile, is_zipfile
 
-abspath = os.path.abspath(os.path.join("."))  # NOQA
-sys.path.append(abspath)  # NOQA
-
-from scripts.insert_data.models import Symbol, OrderBook, Trade
+from models import Symbol, OrderBook, Trade
 
 
 PATH = "/Volumes/JXD/home/work/data_new"  # 文件存放地址
@@ -32,9 +27,7 @@ EXCHANGE_NAME = {
 }
 
 
-# async def main(event_loop):
 def main():
-    now = time.time()
     zip_paths = get_zips(PATH)
     loop = asyncio.get_event_loop()
     tasks = []
@@ -50,7 +43,6 @@ def main():
             handler_not_finally_path(zip_file)
 
     loop.run_until_complete(asyncio.wait(tasks))
-    print("Finished 耗时{}".format(time.time()-now))
 
 
 async def read_file(zip_file):
@@ -84,11 +76,7 @@ async def read_file(zip_file):
 
             # order book 数据
             elif "ORDER" in file_name:
-                loop.create_task(handle_order_book(
-                    exchange_name, symbol_name, df))
-                # handle_order_book(exchange_name, symbol_name, df)
-
-        print(file_name, "ok")
+                loop.create_task(handle_order_book(exchange_name, symbol_name, df))
 
 
 async def handle_trade(exchange_name, symbol_name, df):
@@ -114,7 +102,7 @@ async def handle_trade(exchange_name, symbol_name, df):
     trade = Trade(exchange_name, symbol_name)
     rows = df.to_dict('records')
     for skip in range(0, len(rows), LIMIT):
-        insert_many(trade.collection, rows[skip: skip + LIMIT])
+        await trade.collection.insert_many(rows[skip: skip + LIMIT])
 
 
 async def handle_order_book(exchange_name, symbol_name, df):
@@ -144,8 +132,7 @@ async def handle_order_book(exchange_name, symbol_name, df):
     order_book = OrderBook(exchange_name, symbol_name)
     rows = df.to_dict('records')
     for skip in range(0, len(rows), LIMIT):
-        insert_many(order_book.collection, rows[skip: skip + LIMIT])
-        # insert_many(order_book.collection, rows[skip: skip + LIMIT])
+        await order_book.collection.insert_many(rows[skip: skip + LIMIT])
 
 
 def direction_change(series):
@@ -179,11 +166,6 @@ def insert_symbol(exchange_name, symbol_name):
     symbol = {"exchange": exchange_name, "name": symbol_name,
               "research_usable": True, "trade_usable": True}
     t_symbol.replace_one(filter=symbol, replacement=symbol, upsert=True)
-
-
-def insert_many(collection, rows):
-    requests = [InsertOne(row) for row in rows]
-    collection.bulk_write(requests)
 
 
 def handler_not_finally_path(zip_file):
@@ -239,7 +221,4 @@ def ignore(names):
 
 
 if __name__ == '__main__':
-    t1 = datetime.datetime.now()
-    print("start", t1)
     main()
-    print("finished", datetime.datetime.now()-t1)
