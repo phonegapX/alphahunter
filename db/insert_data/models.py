@@ -1,11 +1,7 @@
 # -*- coding: utf-8 -*-
-import os
-import sys
 import re
 
-abspath = os.path.abspath(os.path.join("../.."))  # NOQA
-sys.path.append(abspath)  # NOQA
-from scripts.insert_data.mongo_utils import get_mongo_conn
+from mongo_utils import get_mongo_conn
 
 
 class Exchange(object):

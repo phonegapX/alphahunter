@@ -1,10 +1,8 @@
 # -*- coding: utf-8 -*-
-from pymongo import MongoClient
+from motor.motor_asyncio import AsyncIOMotorClient
 
-
-# MongoDB 配置, 考虑放到单独文件
-MONGO_POOL = MongoClient(host=["49.235.96.185", ], maxPoolSize=12, socketTimeoutMS=10000, connectTimeoutMS=10000,
-                         authSource="admin", username="admin", password="admin")
+MONGO_POOL = AsyncIOMotorClient(host=["49.235.96.185", ], maxPoolSize=12, socketTimeoutMS=10000, connectTimeoutMS=10000,
+                                authSource="admin", username="admin", password="admin")
 
 
 def get_mongo_conn(db="test"):
