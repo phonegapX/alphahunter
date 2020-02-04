@@ -23,9 +23,9 @@ from collections import defaultdict, deque
 from typing import DefaultDict, Deque, List, Dict, Tuple, Optional, Any
 
 from quant.gateway import ExchangeGateway
-from quant.error import Error
+from quant.state import State
 from quant.utils import tools, logger
-from quant.const import HUOBI, MARKET_TYPE_KLINE
+from quant.const import MARKET_TYPE_KLINE
 from quant.order import Order, Fill, SymbolInfo
 from quant.position import Position
 from quant.asset import Asset
@@ -40,7 +40,7 @@ from quant.order import ORDER_STATUS_SUBMITTED, ORDER_STATUS_PARTIAL_FILLED, ORD
 from quant.market import Kline, Orderbook, Trade, Ticker
 
 
-__all__ = ("HuobiRestAPI", "HuobiTrade", )
+__all__ = ("HuobiRestAPI", "HuobiTrader", )
 
 
 class HuobiRestAPI:
@@ -218,19 +218,19 @@ class HuobiTrader(Websocket, ExchangeGateway):
     def __init__(self, **kwargs):
         """Initialize."""
         self.cb = kwargs["cb"]
-        e = None
+        state = None
         if kwargs.get("account") and (not kwargs.get("access_key") or not kwargs.get("secret_key")):
-            e = Error("param access_key or secret_key miss")
+            state = State("param access_key or secret_key miss")
         elif not kwargs.get("strategy"):
-            e = Error("param strategy miss")
+            state = State("param strategy miss")
         elif not kwargs.get("symbols"):
-            e = Error("param symbols miss")
+            state = State("param symbols miss")
         elif not kwargs.get("platform"):
-            e = Error("param platform miss")
+            state = State("param platform miss")
             
-        if e:
-            logger.error(e, caller=self)
-            SingleTask.run(self.cb.on_init_success_callback, False, e)
+        if state:
+            logger.error(state, caller=self)
+            SingleTask.run(self.cb.on_state_update_callback, state)
             return
 
         self._account = kwargs.get("account")
@@ -505,15 +505,15 @@ class HuobiTrader(Websocket, ExchangeGateway):
         #获取现货账户ID
         self._account_id = await self._rest_api.get_account_id()
         if self._account_id == None:
-            e = Error("get_account_id error")
-            SingleTask.run(self.cb.on_init_success_callback, False, e)
+            state = State("get_account_id error", State.STATE_CODE_GENERAL_ERROR)
+            SingleTask.run(self.cb.on_state_update_callback, state)
             return
         
         #获取相关符号信息
         success, error = await self._rest_api.get_symbols_info()
         if error:
-            e = Error("get_symbols_info error: {}".format(error))
-            SingleTask.run(self.cb.on_init_success_callback, False, e)
+            state = State("get_symbols_info error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+            SingleTask.run(self.cb.on_state_update_callback, state)
             return
         for info in success:
             if info["symbol"] in self._symbols:
@@ -523,8 +523,8 @@ class HuobiTrader(Websocket, ExchangeGateway):
         #{"status": "ok", "data": {"id": 11261082, "type": "spot", "state": "working", "list": [{"currency": "lun", "type": "trade", "balance": "0"}, {"currency": "lun", "type": "frozen", "balance": "0"}]}}
         success, error = await self._rest_api.get_account_balance()
         if error:
-            e = Error("get_account_balance error: {}".format(error))
-            SingleTask.run(self.cb.on_init_success_callback, False, e)
+            state = State("get_account_balance error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+            SingleTask.run(self.cb.on_state_update_callback, state)
             return
         for d in success["list"]:
             b = d["balance"]
@@ -544,8 +544,8 @@ class HuobiTrader(Websocket, ExchangeGateway):
         for sym in self._symbols:
             success, error = await self._rest_api.get_open_orders(sym)
             if error:
-                e = Error("get_open_orders error: {}".format(error))
-                SingleTask.run(self.cb.on_init_success_callback, False, e)
+                state = State("get_open_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                SingleTask.run(self.cb.on_state_update_callback, state)
                 return
             for o in success:
                 self._update_order(o)
@@ -566,7 +566,7 @@ class HuobiTrader(Websocket, ExchangeGateway):
             }
             await self.ws.send_json(params)
 
-    @async_method_locker("HuobiTrade.process_binary.locker")
+    @async_method_locker("HuobiTrader.process_binary.locker")
     async def process_binary(self, raw):
         """ 处理websocket上接收到的消息
         @param raw 原始的压缩数据
@@ -590,16 +590,16 @@ class HuobiTrader(Websocket, ExchangeGateway):
         op = msg.get("op")
         if op == "auth":  # 授权
             if msg["err-code"] != 0:
-                e = Error("Websocket connection authorized failed: {}".format(msg))
-                logger.error(e, caller=self)
-                SingleTask.run(self.cb.on_init_success_callback, False, e)
+                state = State("Websocket connection authorized failed: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
+                logger.error(state, caller=self)
+                SingleTask.run(self.cb.on_state_update_callback, state)
                 return
             logger.info("Websocket connection authorized successfully.", caller=self)
             await self._auth_success_callback()
         elif op == "error":  # error
-            e = Error("Websocket error: {}".format(msg))
-            logger.error(e, caller=self)
-            SingleTask.run(self.cb.on_init_success_callback, False, e)
+            state = State("Websocket error: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
+            logger.error(state, caller=self)
+            SingleTask.run(self.cb.on_state_update_callback, state)
         elif op == "close":  # close
             return
         elif op == "ping":  # ping
@@ -619,9 +619,9 @@ class HuobiTrader(Websocket, ExchangeGateway):
             if not exist:
                 return
             if msg["err-code"] != 0:
-                e = Error("subscribe event error: {}".format(msg))
-                logger.error(e, caller=self)
-                SingleTask.run(self.cb.on_init_success_callback, False, e)
+                state = State("subscribe event error: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
+                logger.error(state, caller=self)
+                SingleTask.run(self.cb.on_state_update_callback, state)
         elif op == "notify":  # 频道更新通知
             for ch in self._order_channel:
                 if msg["topic"] == ch:

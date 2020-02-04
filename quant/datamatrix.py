@@ -9,7 +9,7 @@ Description: Asynchronous driven quantitative trading framework
 """
 
 from quant.gateway import ExchangeGateway
-from quant.error import Error
+from quant.state import State
 from quant.tasks import SingleTask, LoopRunTask
 from quant.utils import tools, logger
 from quant.utils.decorator import async_method_locker
@@ -28,19 +28,19 @@ class DataMatrixTrader(HistoryDataFeed, ExchangeGateway):
     def __init__(self, **kwargs):
         """Initialize."""
         self.cb = kwargs["cb"]
-        e = None
+        state = None
         if not kwargs.get("strategy"):
-            e = Error("param strategy miss")
+            state = State("param strategy miss")
         elif not kwargs.get("symbols"):
-            e = Error("param symbols miss")
+            state = State("param symbols miss")
         elif not kwargs.get("platform"):
-            e = Error("param platform miss")
+            state = State("param platform miss")
         elif not kwargs.get("databind"):
-            e = Error("param databind miss")
+            state = State("param databind miss")
             
-        if e:
-            logger.error(e, caller=self)
-            SingleTask.run(self.cb.on_init_success_callback, False, e)
+        if state:
+            logger.error(state, caller=self)
+            SingleTask.run(self.cb.on_state_update_callback, state)
             return
 
         self._strategy = kwargs["strategy"]

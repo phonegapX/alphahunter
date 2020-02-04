@@ -11,7 +11,7 @@ Description: Asynchronous driven quantitative trading framework
 import sys
 
 from quant import const
-from quant.error import Error
+from quant.state import State
 from quant.utils import tools, logger
 from quant.config import config
 from quant.market import Market, Kline, Orderbook, Trade, Ticker
@@ -58,10 +58,10 @@ class Collect(Strategy):
         }
         self.trader = self.create_gateway(**params)
 
-    async def on_init_success_callback(self, success: bool, error: Error, **kwargs):
-        """ 初始化状态通知
+    async def on_state_update_callback(self, state: State, **kwargs):
+        """ 状态变化(底层交易所接口,框架等)通知回调函数
         """
-        logger.info("on_init_success_callback:", success, caller=self)
+        logger.info("on_state_update_callback:", state, caller=self)
 
     async def on_kline_update_callback(self, kline: Kline):
         """ 市场K线更新

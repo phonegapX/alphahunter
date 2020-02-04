@@ -11,7 +11,7 @@ Description: Asynchronous driven quantitative trading framework
 import copy
 
 from quant import const
-from quant.error import Error
+from quant.state import State
 from quant.utils import logger
 from quant.tasks import SingleTask
 from quant.order import Order, ORDER_TYPE_LIMIT
@@ -90,22 +90,22 @@ class Trader(ExchangeGateway):
             access_key: 登录令牌
             secret_key: 令牌密钥
             cb: ExchangeGateway.ICallBack {
-                on_init_success_callback: `初始化是否成功`回调通知函数
-                on_kline_update_callback: `K线数据`回调通知函数 (值为None就不启用此通知回调)
-                on_orderbook_update_callback: `订单簿深度数据`回调通知函数 (值为None就不启用此通知回调)
-                on_trade_update_callback: `市场最新成交`回调通知函数 (值为None就不启用此通知回调)
-                on_ticker_update_callback: `市场行情tick`回调通知函数 (值为None就不启用此通知回调)
-                on_order_update_callback: `用户挂单`回调通知函数 (值为None就不启用此通知回调)
-                on_fill_update_callback: `用户挂单成交`回调通知函数 (值为None就不启用此通知回调)
-                on_position_update_callback: `用户持仓`回调通知函数 (值为None就不启用此通知回调)
-                on_asset_update_callback: `用户资产`回调通知函数 (值为None就不启用此通知回调)
+                on_state_update_callback: `状态变化`(底层交易所接口,框架等)通知回调函数
+                on_kline_update_callback: `K线数据`通知回调函数 (值为None就不启用此通知回调)
+                on_orderbook_update_callback: `订单簿深度数据`通知回调函数 (值为None就不启用此通知回调)
+                on_trade_update_callback: `市场最新成交`通知回调函数 (值为None就不启用此通知回调)
+                on_ticker_update_callback: `市场行情tick`通知回调函数 (值为None就不启用此通知回调)
+                on_order_update_callback: `用户挂单`通知回调函数 (值为None就不启用此通知回调)
+                on_fill_update_callback: `用户挂单成交`通知回调函数 (值为None就不启用此通知回调)
+                on_position_update_callback: `用户持仓`通知回调函数 (值为None就不启用此通知回调)
+                on_asset_update_callback: `用户资产`通知回调函数 (值为None就不启用此通知回调)
             }
         """
         T = gateway_class(kwargs["platform"])
         if T == None:
             logger.error("platform not found:", kwargs["platform"], caller=self)
             cb = kwargs["cb"]
-            SingleTask.run(cb.on_init_success_callback, False, Error("platform not found"))
+            SingleTask.run(cb.on_state_update_callback, State("platform not found"))
             return
         self._t = T(**kwargs)
 

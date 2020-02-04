@@ -1,7 +1,7 @@
 # -*- coding:utf-8 -*-
 
 """
-HUOBI 模块使用演示
+搬砖套利
 
 Project: alphahunter
 Author: HJQuant
@@ -134,54 +134,6 @@ class DemoStrategy(Strategy):
         """
         logger.info("on_state_update_callback:", state, caller=self)
 
-
-
-    def datactrl(self):
-        self.mpHB.pop(0)
-        self.mpHBF.pop(0)
-
-    def fit_parameters(self, length):
-        z = None
-        if len(self.mpHB) >= length and len(self.mpHBF) >= length:
-                mpHB = np.array(self.mpHB)
-                mpHBF = np.array(self.mpHBF)
-                spread = mpHBF - mpHB
-                
-                
-                #asset = self.pm.get_asset(self.platformHB, self.accountHB)
-                #free_eth = asset.assets["eth"]["free"]
-                #free_usdt = asset.assets["usdt"]["free"]
-                #posHBF = self.pm.get_position(self.platformHBF, self.accountHBF, "ETH191227")
-                
-                #if abs(posSpot) > 0.2 and abs(posSwap) > 0.2:
-                #    z   = (spread[-1] - self.mu)/self.sigma
-                #    self.datactrl()
-                #    return z
-                if sm.tsa.stattools.adfuller(spread)[1] < 0.05 and \
-                   sm.tsa.stattools.adfuller(spread[int(length/2):])[1] < 0.05 and \
-                   sm.tsa.stattools.adfuller(spread[int(length/3):])[1] < 0.05:
-                    model     = AR(spread)
-                    model_fit = model.fit(1)
-                    a, b      = model_fit.params
-                    if b < 1:
-                        self.theta     = 1-b
-                        self.mu        = a/(1-b)
-                        self.epsilon   = spread[1:]-(a+b*spread[:-1])
-                        self.sigma     = np.sqrt((np.std(self.epsilon)**2)/(2*self.theta))
-                        z              = (spread[-1] - self.mu)/self.sigma
-                        #print(z, len(spread))
-                self.datactrl()
-        return z
-
-
-
-
-
-  
-
-
-
-
     async def on_orderbook_update_callback(self, orderbook: Orderbook):
         """ 订单薄更新
         """
@@ -209,9 +161,6 @@ class DemoStrategy(Strategy):
                 bpHBF = self._orderbookHBF.bids[0][0]
                 self.mpHBF.append((apHBF+bpHBF)/2)
 
-                z = self.fit_parameters(3600)
-                self.trade(z, 10, 6, 1.96)
-                
                 self._last_ts = nowts
                 
                 

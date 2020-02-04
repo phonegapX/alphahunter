@@ -22,7 +22,7 @@ from itertools import zip_longest
 from requests import Request
 
 from quant.gateway import ExchangeGateway
-from quant.error import Error
+from quant.state import State
 from quant.order import Order, Fill, SymbolInfo
 from quant.tasks import SingleTask, LoopRunTask
 from quant.position import Position
@@ -170,19 +170,19 @@ class FTXTrader(Websocket, ExchangeGateway):
     def __init__(self, **kwargs):
         """Initialize."""
         self.cb = kwargs["cb"]
-        e = None
+        state = None
         if kwargs.get("account") and (not kwargs.get("access_key") or not kwargs.get("secret_key")):
-            e = Error("param access_key or secret_key miss")
+            state = State("param access_key or secret_key miss")
         elif not kwargs.get("strategy"):
-            e = Error("param strategy miss")
+            state = State("param strategy miss")
         elif not kwargs.get("symbols"):
-            e = Error("param symbols miss")
+            state = State("param symbols miss")
         elif not kwargs.get("platform"):
-            e = Error("param platform miss")
+            state = State("param platform miss")
             
-        if e:
-            logger.error(e, caller=self)
-            SingleTask.run(self.cb.on_init_success_callback, False, e)
+        if state:
+            logger.error(state, caller=self)
+            SingleTask.run(self.cb.on_state_update_callback, state)
             return
 
         if not kwargs.get("host"):
@@ -548,9 +548,9 @@ class FTXTrader(Websocket, ExchangeGateway):
         
         #{"type": "error", "code": 400, "msg": "Invalid login credentials"}
         if msg["type"] == "error":
-            e = Error("Websocket connection failed: {}".format(msg))
-            logger.error(e, caller=self)
-            SingleTask.run(self.cb.on_init_success_callback, False, e, **self.raw_kwargs)
+            state = State("Websocket connection failed: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
+            logger.error(state, caller=self)
+            SingleTask.run(self.cb.on_state_update_callback, state, **self.raw_kwargs)
             return
         
         if msg["type"] == "info" and msg["code"] == 20001:

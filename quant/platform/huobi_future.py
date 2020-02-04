@@ -22,7 +22,7 @@ from collections import defaultdict, deque
 from typing import DefaultDict, Deque, List, Dict, Tuple, Optional, Any
 
 from quant.gateway import ExchangeGateway
-from quant.error import Error
+from quant.state import State
 from quant.order import Order, Fill
 from quant.utils import tools
 from quant.utils import logger
@@ -360,19 +360,19 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
     def __init__(self, **kwargs):
         """Initialize."""
         self.cb = kwargs["cb"]
-        e = None
+        state = None
         if kwargs.get("account") and (not kwargs.get("access_key") or not kwargs.get("secret_key")):
-            e = Error("param access_key or secret_key miss")
+            state = State("param access_key or secret_key miss")
         elif not kwargs.get("strategy"):
-            e = Error("param strategy miss")
+            state = State("param strategy miss")
         elif not kwargs.get("symbols"):
-            e = Error("param symbols miss")
+            state = State("param symbols miss")
         elif not kwargs.get("platform"):
-            e = Error("param platform miss")
+            state = State("param platform miss")
             
-        if e:
-            logger.error(e, caller=self)
-            SingleTask.run(self.cb.on_init_success_callback, False, e)
+        if state:
+            logger.error(state, caller=self)
+            SingleTask.run(self.cb.on_state_update_callback, state)
             return
 
         self._account = kwargs.get("account")
@@ -621,8 +621,7 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
 
         success, error = await self._rest_api.get_contract_info()
         if error:
-            e = Error("get_contract_info error: {}".format(error))
-            return False, e
+            return False, error
         
         for info in success["data"]:
             if info["contract_code"] in self._symbols:
@@ -649,8 +648,7 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         if exist:
             return True, None
         else:
-            e = Error("symbol not found")
-            return False, e
+            return False, "symbol not found"
 
     async def _init_sub_channel(self):
         prev = []
@@ -671,14 +669,15 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
 
     async def auth_callback(self, data):
         if data["err-code"] != 0:
-            e = Error("Websocket connection authorized failed: {}".format(data))
-            logger.error(e, caller=self)
-            SingleTask.run(self.cb.on_init_success_callback, False, e)
+            state = State("Websocket connection authorized failed: {}".format(data), State.STATE_CODE_GENERAL_ERROR)
+            logger.error(state, caller=self)
+            SingleTask.run(self.cb.on_state_update_callback, state)
             return
 
         success, error = await self._init_contract_info()
         if error:
-            SingleTask.run(self.cb.on_init_success_callback, False, error)
+            state = State("_init_contract_info error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+            SingleTask.run(self.cb.on_state_update_callback, state)
             return
         
         await self._init_sub_channel()
@@ -713,9 +712,9 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
 
     async def sub_callback(self, data):
         if data["err-code"] != 0:
-            e = Error("subscribe {} failed!".format(data["topic"]))
-            logger.error(e, caller=self)
-            SingleTask.run(self.cb.on_init_success_callback, False, e)
+            state = State("subscribe {} failed!".format(data["topic"]), State.STATE_CODE_GENERAL_ERROR)
+            logger.error(state, caller=self)
+            SingleTask.run(self.cb.on_state_update_callback, state)
             return
 
     @async_method_locker("HuobiFutureTrader.process_binary.locker")

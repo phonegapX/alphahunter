@@ -85,10 +85,10 @@ class DemoStrategy(Strategy):
 
         logger.info("on_time ...", caller=self)
 
-    async def on_init_success_callback(self, success: bool, error: Error, **kwargs):
-        """ 初始化状态通知
+    async def on_state_update_callback(self, state: State, **kwargs):
+        """ 状态变化(底层交易所接口,框架等)通知回调函数
         """
-        logger.info("on_init_success_callback:", success, caller=self)
+        logger.info("on_state_update_callback:", state, caller=self)
 
     async def on_kline_update_callback(self, kline: Kline):
         """ 市场K线更新
@@ -99,8 +99,8 @@ class DemoStrategy(Strategy):
     async def can_do_open_close_pos_demo(self):
         """
         开平仓逻辑应该独立放到一个函数里面,并且加上'不等待类型的锁',就像本函数演示的这样.
-        因为为了最大的时效性,框架采用的是异步架构,假如这里还在处理过程中,新的回调通知来了,那样就会
-        引起重复开平仓,所以就把开平仓的过程加上'不等待类型的锁',这样新的回调通知来了,这里又被调用的情况下,
+        因为为了最大的时效性,框架采用的是异步架构,假如这里还在处理过程中,新的通知回调来了,那样就会
+        引起重复开平仓,所以就把开平仓的过程加上'不等待类型的锁',这样新的通知回调来了,这里又被调用的情况下,
         因为有'不等待类型的锁',所以会直接跳过(忽略)本函数,这样就不会导致重复执行开平仓的动作.
         记住这里是'不等待类型的锁'(装饰器第二个参数为False),而不是`等待类型的锁`,因为我们不需要等待,假如等待的话还是会重复开平仓(而且行情也过期了)
         比如下面模拟要处理3秒,现实中是有可能发生的,比如网络或者交易所繁忙的时候.
@@ -155,7 +155,7 @@ class DemoStrategy(Strategy):
 
 首先你的策略类需要继承至`Strategy`类,并且实现`ExchangeGateway.ICallBack`接口：
 
-`async def on_init_success_callback(self, success: bool, error: Error, **kwargs)` 初始化状态通知
+`async def on_state_update_callback(self, state: State, **kwargs)` 状态变化(底层交易所接口,框架等)通知回调函数
 
 `async def on_kline_update_callback(self, kline: Kline)` 市场K线更新(公共数据)
 

@@ -1,0 +1,23 @@
+{
+    "RABBITMQ": {
+        "host": "127.0.0.1",
+        "port": 5672,
+        "username": "guest",
+        "password": "guest"
+    },
+    "ACCOUNTS": [
+        {
+            "platform": "okex",
+            "account": "abc123@gmail.com",
+            "access_key": "xxxxxxxxxxxx",
+            "secret_key": "xxxxxxxxxxxx",
+            "passphrase": "abc123"
+        }
+    ],
+    "MARKETS": {
+        "okex": {
+            "symbols": ["BTC-USDT"]
+        }
+    },
+    "strategy": "my_test_strategy"
+}

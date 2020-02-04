@@ -15,7 +15,7 @@ from quant.market import Kline, Orderbook, Trade, Ticker
 from quant.asset import Asset
 from quant.position import Position
 from quant.order import Order, Fill, ORDER_TYPE_LIMIT
-from quant.error import Error
+from quant.state import State
 
 
 class ExchangeGateway(with_metaclass(ABCMeta)):
@@ -161,7 +161,7 @@ class ExchangeGateway(with_metaclass(ABCMeta)):
         #=====================================================================
         
         @abstractmethod
-        async def on_init_success_callback(self, success: bool, error: Error, **kwargs): 
+        async def on_state_update_callback(self, state: State, **kwargs): 
             """
-            交易所初始化成功或失败通知回调函数
+            状态变化(底层交易所接口,框架等)通知回调函数
             """

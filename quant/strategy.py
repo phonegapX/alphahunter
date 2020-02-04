@@ -19,7 +19,7 @@ from quant.order import Order, Fill, ORDER_TYPE_LIMIT
 from quant.portfoliomanager import PortfolioManager
 from quant.trader import Trader
 from quant.tasks import LoopRunTask, SingleTask
-from quant.error import Error
+from quant.state import State
 from quant import const
 
 
@@ -42,7 +42,7 @@ class Strategy(ExchangeGateway.ICallBack):
         self._hook_strategy()
     
     def _hook_strategy(self):
-        """Hook策略相应账户各种私有数据的回调通知函数,这样策略执行后,资产,仓位,订单,成交等数据发生变化时,
+        """Hook策略相应账户各种私有数据的通知回调函数,这样策略执行后,资产,仓位,订单,成交等数据发生变化时,
         可以第一时间感知到,并且进行相应的预处理,比如记录到数据管理器中,比如发布到消息队列服务器等 
         """
         #Hook资产回调函数
@@ -133,7 +133,7 @@ class Strategy(ExchangeGateway.ICallBack):
             async def on_position_update_callback(self, position: Position): pass
             async def on_order_update_callback(self, order: Order): pass
             async def on_fill_update_callback(self, fill: Fill): pass
-            async def on_init_success_callback(self, success: bool, error: Error, **kwargs): pass
+            async def on_state_update_callback(self, state: State, **kwargs): pass
 
         cb = CB()
         cb.on_kline_update_callback = None
@@ -144,10 +144,10 @@ class Strategy(ExchangeGateway.ICallBack):
         cb.on_position_update_callback = None
         cb.on_order_update_callback = None
         cb.on_fill_update_callback = None
-        cb.on_init_success_callback = None
+        cb.on_state_update_callback = None
 
-        #设置`初始化是否成功`回调通知函数
-        cb.on_init_success_callback = self.on_init_success_callback
+        #设置`状态变化`通知回调函数
+        cb.on_state_update_callback = self.on_state_update_callback
         
         #如果启用,就设置相对应的通知回调函数
         if kwargs["enable_kline_update"]:

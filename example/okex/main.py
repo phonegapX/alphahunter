@@ -1,7 +1,8 @@
 # -*- coding:utf-8 -*-
 
 """
-FTX 模块使用演示
+OKEX 模块使用演示
+备注: OKEX网站界面显示的符号格式类似BTC/USDT,而API实际使用的符号格式却是类似BTC-USDT,这里统一使用API所用格式
 
 Project: alphahunter
 Author: HJQuant
@@ -36,13 +37,13 @@ class DemoStrategy(Strategy):
         self.strategy = config.strategy
         
         #=====================================================
-        #创建第一个交易接口
+        #创建交易网关
         self.platform = config.accounts[0]["platform"]
         self.account = config.accounts[0]["account"]
         self.access_key = config.accounts[0]["access_key"]
         self.secret_key = config.accounts[0]["secret_key"]
-        target = config.markets[self.platform]
-        self.symbols = target["symbols"]
+        self.passphrase = config.accounts[0]["passphrase"]
+        self.symbols = config.markets[self.platform]["symbols"]
         # 交易模块参数
         params = {
             "strategy": self.strategy,
@@ -51,6 +52,7 @@ class DemoStrategy(Strategy):
             "account": self.account,
             "access_key": self.access_key,
             "secret_key": self.secret_key,
+            "passphrase": self.passphrase,
 
             "enable_kline_update": True,
             "enable_orderbook_update": True,
@@ -66,42 +68,7 @@ class DemoStrategy(Strategy):
             "direct_trade_update": False,
             "direct_ticker_update": False
         }
-        #self.trader = self.create_gateway(**params)
-        
-        #=====================================================
-        #创建第二个交易接口
-        self.platform1 = config.accounts[1]["platform"]
-        self.account1 = config.accounts[1]["account"]
-        self.access_key1 = config.accounts[1]["access_key"]
-        self.secret_key1 = config.accounts[1]["secret_key"]
-        self.subaccount_name1 = config.accounts[1]["subaccount_name"]
-        target = config.markets[self.platform1]
-        self.symbols1 = target["symbols"]
-        # 交易模块参数
-        params1 = {
-            "strategy": self.strategy,
-            "platform": self.platform1,
-            "symbols": self.symbols1,
-            "account": self.account1,
-            "access_key": self.access_key1,
-            "secret_key": self.secret_key1,
-            "subaccount_name": self.subaccount_name1,
-
-            "enable_kline_update": True,
-            "enable_orderbook_update": True,
-            "enable_trade_update": True,
-            "enable_ticker_update": True,
-            "enable_order_update": True,
-            "enable_fill_update": True,
-            "enable_position_update": True,
-            "enable_asset_update": True,
-
-            "direct_kline_update": False,
-            "direct_orderbook_update": False,
-            "direct_trade_update": False,
-            "direct_ticker_update": False
-        }
-        self.trader1 = self.create_gateway(**params1)
+        self.gw = self.create_gateway(**params)
 
         # 注册定时器
         self.enable_timer()  # 每隔1秒执行一次回调
@@ -111,16 +78,12 @@ class DemoStrategy(Strategy):
         """
         if not hasattr(self, "just_once"):
             self.just_once = 1
-            #xx = self.get_orders(self.trader, "ETH-PERP")
-            xx = self.get_position(self.trader1, "ETH-PERP")
-            #xx = self.get_assets(self.trader)
-            #xx = self.create_order(self.trader1, "ETH-PERP", ORDER_ACTION_SELL, "51", "-0.002")
-            #xx = self.create_order(self.trader1, "ETH-PERP", ORDER_ACTION_SELL, "0", "-0.002", ORDER_TYPE_MARKET)
-            #xx = self.revoke_order(self.trader, "ETH-PERP", "1017521392")
-            #order1 = Strategy.TOrder(self.trader, "ETH-PERP", ORDER_ACTION_SELL, "351", "-0.02")
-            #order2 = Strategy.TOrder(self.trader1, "ETH-PERP", ORDER_ACTION_SELL, "352", "-0.03")
-            #xx = self.create_pair_order(order1, order2)
-            #xx = self.get_symbol_info(self.trader, "ETH-PERP")
+            #xx = self.get_orders(self.gw, "BTC/USDT")
+            #xx = self.get_assets(self.gw)
+            #xx = self.create_order(self.gw, "BTC/USDT", ORDER_ACTION_SELL, "9000", "0.002")
+            #xx = self.create_order(self.gw, "BTC/USDT", ORDER_ACTION_SELL, "0", "0.002", ORDER_TYPE_MARKET)
+            #xx = self.revoke_order(self.gw, "BTC/USDT", "1017521392")
+            xx = self.get_symbol_info(self.gw, "BTC/USDT")
             yy, zz = await xx
         
         logger.info("on_time ...", caller=self)
