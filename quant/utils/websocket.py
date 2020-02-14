@@ -15,18 +15,20 @@ import asyncio
 from quant.utils import logger, tools
 from quant.config import config
 from quant.heartbeat import heartbeat
+from quant.state import State
 
 
 class Websocket:
     """ websocket接口封装
     """
 
-    def __init__(self, url, check_conn_interval=60, send_hb_interval=10):
+    def __init__(self, url, check_conn_interval=60, send_hb_interval=10, **kwargs):
         """ 初始化
         @param url 建立websocket的地址
         @param check_conn_interval 检查websocket连接时间间隔
         @param send_hb_interval 发送心跳时间间隔，如果是0就不发送心跳消息
         """
+        self.cb = kwargs["cb"]
         self._url = url
         self._check_conn_interval = check_conn_interval
         if self._check_conn_interval < 15:
@@ -59,8 +61,12 @@ class Websocket:
             self._ws = await session.ws_connect(self._url, proxy=proxy)
         except aiohttp.client_exceptions.ClientConnectorError:
             logger.error("connect to server error! url:", self._url, caller=self)
+            state = State("connect to server error! url: {}".format(self._url), State.STATE_CODE_CONNECT_FAILED)
+            SingleTask.run(self.cb.on_state_update_callback, state)
             asyncio.get_event_loop().create_task(self._reconnect()) #如果连接出错就重新连接
             return
+        state = State("connect to server success! url: {}".format(self._url), State.STATE_CODE_CONNECT_SUCCESS)
+        SingleTask.run(self.cb.on_state_update_callback, state)
         asyncio.get_event_loop().create_task(self.connected_callback())
         asyncio.get_event_loop().create_task(self.receive())
 
@@ -70,6 +76,8 @@ class Websocket:
         if delay > 0:
             asyncio.sleep(delay) #等待一段时间再重连
         logger.warn("reconnecting websocket right now!", caller=self)
+        state = State("reconnecting websocket right now! url: {}".format(self._url), State.STATE_CODE_RECONNECTING)
+        SingleTask.run(self.cb.on_state_update_callback, state)
         await self._connect()
 
     async def connected_callback(self):
@@ -114,6 +122,8 @@ class Websocket:
                 #aiohttp.WSMsgType.PONG
                 logger.warn("unhandled msg:", msg, caller=self)
         #当ws连接被关闭或者出现任何错误,将重新连接
+        state = State("connection lost! url: {}".format(self._url), State.STATE_CODE_DISCONNECT)
+        SingleTask.run(self.cb.on_state_update_callback, state)
         self.last_timestamp = 0 #先置0,相当于关闭连接检测
         asyncio.get_event_loop().create_task(self._reconnect())
 

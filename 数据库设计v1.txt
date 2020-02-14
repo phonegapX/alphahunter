@@ -62,7 +62,7 @@ TABLE t_kline_1min_xxx_yyy (如果是五分钟k线的话就是t_kline_5min_xxx_y
     close -->类型:float. 备注:收盘价
     avg_price -->类型:float. 备注:k线内加权平均价
     buy_avg_price -->类型:float. 备注:k线内主买加权平均价
-    sell_avg_price -->类型:float. 备注:k线内主卖加权平均价
+    sell_avi_price -->类型:float. 备注:k线内主卖加权平均价
     open_avg -->类型:float. 备注:开盘一段时间加权平均价
     close_avg -->类型:float. 备注:收盘一段时间加权平均价
     volume -->类型:float. 备注:成交量
@@ -79,15 +79,17 @@ TABLE t_kline_1min_xxx_yyy (如果是五分钟k线的话就是t_kline_5min_xxx_y
     sectional_volume -->类型:float. 备注:今日开盘到此时总成交量
     sectional_amount -->类型:float. 备注:今日开盘到此时总成交额
     sectional_avg_price -->类型:float. 备注:今日开盘到此时加权平均价
-    sectional_buy_avg_price -->类型:float. 备注:今日开盘到此时主买加权平均价
-    sectional_sell_avg_price -->类型:float. 备注:今日开盘到此时主卖加权平均价
+    
     sectional_book_count -->类型:正整数. 备注:今日开盘到此时总成交笔数
     sectional_buy_book_count -->类型:正整数. 备注:今日开盘到此时主动买总成交笔数
     sectional_sell_book_count -->类型:正整数. 备注:今日开盘到此时主动卖总成交笔数
+    
     sectional_buy_volume -->类型:float. 备注:今日开盘到此时主动买入的成交量
     sectional_buy_amount -->类型:float. 备注:今日开盘到此时主动买入的成交额
+    sectional_buy_avg_price -->类型:float. 备注:今日开盘到此时主买加权平均价
     sectional_sell_volume -->类型:float. 备注:今日开盘到此时主动卖出的成交量
     sectional_sell_amount -->类型:float. 备注:今日开盘到此时主动卖出的成交额
+    sectional_sell_avg_price -->类型:float. 备注:今日开盘到此时主卖加权平均价
     prev_close_price -->类型:float. 备注:前一天收盘价
     next_price -->类型:float. 备注:下一个Kline的open_avg
     prev_price -->类型:float. 备注:前一个Kline的close_avg
@@ -156,16 +158,16 @@ TABLE t_symbol_info:
 10. close_avg:
    10s: 这根k线后2秒的trade数据拿出来(比如：00:00:8.000 - 00:00:9.999)，
          即 begin_dt + 8 * 1000 <= t < begin_dt + 10 * 1000
-         open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
-         open_avg_check = sum(trade price * volume) / sum(volume)
+         close_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+         close_avg_check = sum(trade price * volume) / sum(volume)
    1min: 这根k线后12秒的trade数据拿出来(比如：00:00:48.000 - 00:00:59.999)，
          即 begin_dt + 48 * 1000 <= t < begin_dt + 60 * 1000
-         open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
-         open_avg_check = sum(trade price * volume) / sum(volume)
+         close_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+         close_avg_check = sum(trade price * volume) / sum(volume)
    5min: 这根k线后1分钟的trade数据拿出来(比如：00:04:00.000 - 00:04:59.999)，
          即 begin_dt + 4 * 60 * 1000 <= t < begin_dt + 5 * 60 * 1000
-         open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
-         open_avg_check = sum(trade price * volume) / sum(volume)
+         close_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+         close_avg_check = sum(trade price * volume) / sum(volume)
 11. volume = begin_dt 和 end_dt之间的所有trade数据的volume之和
 12. amount = begin_dt 和 end_dt之间的所有的trade数据的amount之和
     amount_check = sum(trade price * volume)
@@ -219,18 +221,18 @@ TABLE t_symbol_info:
   同时，对于不可用的这个kline里的其他字段取值，方法如下：
   begin_dt -->类型:64位正整数. 正常
   end_dt -->类型:64位正整数. 正常
-  open -->类型:float. 备注:开盘价，空值
-  high -->类型:float. 备注:最高价，空值
-  low -->类型:float. 备注:最低价，空值
-  close -->类型:float. 备注:收盘价，空值
-  avg_price -->类型:float. 备注:k线内加权平均价，空值
-  buy_avg_price -->类型:float. 备注:k线内主买加权平均价，如果完全没有成交量，空值，如果有一些成交量，但是都是主动卖，那么该字段也是空值，否则正常
-  sell_avg_price -->类型:float. 备注:k线内主卖加权平均价，如果完全没有成交量，空值，如果有一些成交量，但是都是主动买，那么该字段也是空值，否则正常
-  open_avg -->类型:float. 备注:开盘一段时间加权平均价，空值
-  close_avg -->类型:float. 备注:收盘一段时间加权平均价，空值
-  volume -->类型:float. 备注:成交量，0.0
-  amount -->类型:float. 备注:成交额，0.0
-  book_count -->类型:正整数. 备注:成交笔数，0
+  open -->类型:float. 备注:开盘价，没有成交量0.0
+  high -->类型:float. 备注:最高价，没有成交量0.0
+  low -->类型:float. 备注:最低价，没有成交量0.0
+  close -->类型:float. 备注:收盘价，没有成交量0.0
+  avg_price -->类型:float. 备注:k线内加权平均价，没有成交量0.0
+  buy_avg_price -->类型:float. 备注:k线内主买加权平均价，如果完全没有成交量，0.0，如果有一些成交量，但是都是主动卖，那么该字段也是0.0，否则正常
+  sell_avg_price -->类型:float. 备注:k线内主卖加权平均价，如果完全没有成交量，0.0，如果有一些成交量，但是都是主动买，那么该字段也是0.0，否则正常
+  open_avg -->类型:float. 备注:开盘一段时间加权平均价，没有成交量0.0
+  close_avg -->类型:float. 备注:收盘一段时间加权平均价，没有成交量0.0
+  volume -->类型:float. 备注:成交量，没有成交量0.0
+  amount -->类型:float. 备注:成交额，没有成交量0.0
+  book_count -->类型:正整数. 备注:成交笔数，没有成交量0
   buy_book_count -->类型：正整数，备注：主动买成交笔数，如果是完全没有成交量，0，如果有一些成交量，但是都是主动卖，也是0，否则正常
   sell_book_count -->类型：正整数，备注：主动卖成交笔数，如果是完全没有成交量，0，如果有一些成交量，但是都是主动买，也是0，否则正常
   buy_volume -->类型:float. 备注:主动买入的成交量，0.0，如果有一些成交量，但是都是主动卖，也是0.0，否则正常
@@ -251,10 +253,10 @@ TABLE t_symbol_info:
   sectional_buy_amount -->类型:float. 备注:今日开盘到此时主动买入的成交额，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主卖，也顺延上一根，否则正常
   sectional_sell_volume -->类型:float. 备注:今日开盘到此时主动卖出的成交量，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主买，也顺延上一根，否则正常
   sectional_sell_amount -->类型:float. 备注:今日开盘到此时主动卖出的成交额，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主买，也顺延上一根，否则正常
-  prev_close_price -->类型:float. 备注:前一天收盘价，如果前一天没有价格，这根k线该字段设为空值
-  next_price -->类型:float. 备注:下一个Kline的open_avg，有异常，设为空值
-  prev_price -->类型:float. 备注:前一个Kline的close_avg，有异常，设为空值
+  prev_close_price -->类型:float. 备注:前一天收盘价，如果前一天没有价格，这根k线该字段设为0.0
+  next_price -->类型:float. 备注:下一个Kline的open_avg，有异常，设为0.0
+  prev_price -->类型:float. 备注:前一个Kline的close_avg，有异常，设为0.0
   lead_ret -->类型:float. 备注:相对于本bar,未来一个收益率，有异常，设为空值
   lag_ret -->类型:float. 备注:相对于本bar,之前一个收益率，有异常，设为空值
   usable: True if volume>0 else False
-7. 原则上来说，价格出现异常，设为空值，成交量或者成交额出现异常，设为0.0
+7. 原则上来说，价格出现异常，设为0.0，成交量或者成交额出现异常，设为0，return出现异常，设为空值

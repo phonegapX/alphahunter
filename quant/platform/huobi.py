@@ -243,7 +243,7 @@ class HuobiTrader(Websocket, ExchangeGateway):
         self._wss = "wss://api.huobi.io"
         
         url = self._wss + "/ws/v1"
-        super(HuobiTrader, self).__init__(url, check_conn_interval=5, send_hb_interval=0)
+        super(HuobiTrader, self).__init__(url, check_conn_interval=5, send_hb_interval=0, **kwargs)
         #self.heartbeat_msg = "ping"
 
         # Initializing our REST API client.
@@ -639,7 +639,9 @@ class HuobiTrader(Websocket, ExchangeGateway):
             }
             await self.send_json(params)
 
-    @async_method_locker("HuobiTrader.process_binary.locker")
+        #计数初始化0
+        self._subscribe_response_count = 0
+
     async def process_binary(self, raw):
         """ 处理websocket上接收到的消息
         @param raw 原始的压缩数据
@@ -690,7 +692,13 @@ class HuobiTrader(Websocket, ExchangeGateway):
                 exist = True
             if not exist:
                 return
-            if msg["err-code"] != 0:
+            if msg["err-code"] == 0:
+                self._subscribe_response_count = self._subscribe_response_count + 1 #每来一次订阅响应计数就加一
+                count = len(self._order_channel)+1 #应该要返回的订阅响应数
+                if self._subscribe_response_count == count: #所有的订阅都成功了,通知上层接口都准备好了
+                    state = State("Environment ready", State.STATE_CODE_READY)
+                    SingleTask.run(self.cb.on_state_update_callback, state)
+            else:
                 state = State("subscribe event error: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
                 logger.error(state, caller=self)
                 SingleTask.run(self.cb.on_state_update_callback, state)
@@ -996,7 +1004,7 @@ class HuobiMarket(Websocket):
         self._symbols = kwargs["symbols"]
         self._wss = "wss://api.huobi.io"
         url = self._wss + "/ws"
-        super(HuobiMarket, self).__init__(url, check_conn_interval=5, send_hb_interval=0)
+        super(HuobiMarket, self).__init__(url, check_conn_interval=5, send_hb_interval=0, **kwargs)
         #self.heartbeat_msg = "ping"
         self._c_to_s = {}  # {"channel": "symbol"}
         self.initialize()

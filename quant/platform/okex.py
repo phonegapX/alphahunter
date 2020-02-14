@@ -282,7 +282,7 @@ class OKExTrader(Websocket, ExchangeGateway):
             self._order_channel.append("spot/order:{symbol}".format(symbol=sym))
 
         url = self._wss + "/ws/v3"
-        super(OKExTrader, self).__init__(url, send_hb_interval=5)
+        super(OKExTrader, self).__init__(url, send_hb_interval=5, **kwargs)
         self.heartbeat_msg = "ping"
         
         self._syminfo:DefaultDict[str: Dict[str, Any]] = defaultdict(dict)
@@ -641,17 +641,19 @@ class OKExTrader(Websocket, ExchangeGateway):
             sl.append(si["base_currency"])
             sl.append(si["quote_currency"])
         #set的目的是去重
-        account_channel = []
+        self._account_channel = []
         for s in set(sl):
-            account_channel.append("spot/account:{symbol}".format(symbol=s))
+            self._account_channel.append("spot/account:{symbol}".format(symbol=s))
         #发送订阅
         data = {
             "op": "subscribe",
-            "args": account_channel
+            "args": self._account_channel
         }
         await self.send_json(data)
+        
+        #计数初始化0
+        self._subscribe_response_count = 0
 
-    @async_method_locker("OKExTrader.process_binary.locker")
     async def process_binary(self, raw):
         """ Process binary message that received from websocket.
 
@@ -682,8 +684,12 @@ class OKExTrader(Websocket, ExchangeGateway):
 
         # Subscribe response message received.
         elif msg.get("event") == "subscribe":
-            #if msg.get("channel") == self._order_channel:
-            pass
+            #msg.get("channel")
+            self._subscribe_response_count = self._subscribe_response_count + 1 #每来一次订阅响应计数就加一
+            count = len(self._account_channel)+len(self._order_channel) #应该要返回的订阅响应数
+            if self._subscribe_response_count == count: #所有的订阅都成功了,通知上层接口都准备好了
+                state = State("Environment ready", State.STATE_CODE_READY)
+                SingleTask.run(self.cb.on_state_update_callback, state)
         
         elif msg.get("event") == "error":
             state = State("Websocket processing failed: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
@@ -830,7 +836,7 @@ class OKExMarket(Websocket):
         self._symbols = kwargs["symbols"]
         self._wss = "wss://real.okex.com:8443"
         url = self._wss + "/ws/v3"
-        super(OKExTrader, self).__init__(url, send_hb_interval=5)
+        super(OKExMarket, self).__init__(url, send_hb_interval=5, **kwargs)
         self.heartbeat_msg = "ping"
         
         self._orderbook_length = 20
