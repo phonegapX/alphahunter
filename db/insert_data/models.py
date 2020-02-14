@@ -1,17 +1,44 @@
 # -*- coding: utf-8 -*-
 import re
+import asyncio
+from pandas import DataFrame
 
 from mongo_utils import get_mongo_conn
 
 
-class Exchange(object):
+class Base(object):
+
+    def get_all(self, sort=None, **kwargs):
+        pass
+
+    async def get_df_from_table(self, query={}, sort=None, skip=0, limit=1000):
+        """
+        use me like this:
+
+        kline = Kline(exchange_name="binance", symbol_name="btcusdt")
+        df = await kline.get_df_from_table()
+        """
+        if sort:
+            cursor = self.collection.find(query).sort(sort).skip(skip).limit(limit)
+        else:
+            cursor = self.collection.find(query).skip(skip).limit(limit)
+        documents = [t_document for t_document in await cursor.to_list(length=limit)]
+        return DataFrame(documents)
+
+
+class Exchange(Base):
     COLUMNS = []
 
     def __init__(self):
+        super(Base, self).__init__()
         self.collection = get_mongo_conn()["t_exchange"]
 
 
-class Symbol(object):
+class Symbol(Base):
+    """
+    research_usable: 做datamatrix研究时， 是否可用于分析
+    trade_usable: 跑策略时，是否可用于交易
+    """
     FOCUS_SYMBOLS = [
         "btcusdt", "ethusdt", "ltcusdt", "etcusdt", "xrpusdt", "eosusdt", "bchusdt", "bsvusdt", "trxusdt", "adausdt",
         "ethbtc", "ltcbtc", "etcbtc", "xrpbtc", "eosbtc", "bchbtc", "bsvbtc", "trxbtc", "adabtc"]
@@ -26,6 +53,7 @@ class Symbol(object):
     COLUMNS = ["exchange", "name", "research_usable", "trade_usable"]
 
     def __init__(self):
+        super(Base, self).__init__()
         self.collection = get_mongo_conn()["t_symbol"]
 
     @classmethod
@@ -79,13 +107,45 @@ class OrderBook(object):
         self.collection = get_mongo_conn()[collection_name]
 
 
-class Trade(object):
+class Trade(Base):
     """
     市场逐笔成交记录表
     """
     COLUMNS = ["dt", "tradedt", "tradeprice", "volume", "amount", "direction"]
 
     def __init__(self, exchange_name, symbol_name):
+        super(Base, self).__init__()
         collection_name = "t_trade_{exchange_name}_{symbol_name}".format(exchange_name=exchange_name,
                                                                          symbol_name=symbol_name)
         self.collection = get_mongo_conn()[collection_name]
+
+
+class Kline(Base):
+    """
+    K线
+    """
+    COLUMNS = ["begin_dt", "end_dt", "open", "high", "low", "close", "avg_price", "buy_avg_price", "sell_avg_price",
+               "open_avg", "close_avg", "volume", "amount", "book_count", "buy_book_count", "sell_book_count",
+               "buy_volume", "sell_volume", "sell_aomunt", "sectional_high", "sectional_low", "sectional_volume",
+               "sectional_aomunt", "sectional_avg_price", "sectional_buy_avg_price", "sectional_sell_avg_price",
+               "sectional_book_count" "sectional_buy_book_count", "sectional_sell_book_count", "sectional_buy_volume",
+               "sectional_sell_aomunt", "sectional_sell_volume", "sectional_sell_aomunt", "prev_close_price",
+               "next_price", "prev_price", "lead_ret", "lag_ret", "usable"
+               ]
+    INTERVAL_DIRECTION = {
+        "10s": 10 * 1000,
+        "1min": 60 * 1000,
+        "5min": 60 * 5 * 1000,
+    }
+
+    def __init__(self, exchange_name, symbol_name, interval_str="1min"):
+        super(Base, self).__init__()
+        self.collection_name = "t_kline_1min_{exchange_name}_{symbol_name}".format(exchange_name=exchange_name,
+                                                                                   symbol_name=symbol_name)
+        self.collection = get_mongo_conn()[self.collection_name]
+        self.interval = self.INTERVAL_DIRECTION.get(interval_str, "1min")
+
+    @asyncio.coroutine
+    def insert_many(self, klines):
+        result = yield from self.collection.bulk_write(klines)
+        return result
