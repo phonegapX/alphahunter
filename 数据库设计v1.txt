@@ -79,17 +79,15 @@ TABLE t_kline_1min_xxx_yyy (如果是五分钟k线的话就是t_kline_5min_xxx_y
     sectional_volume -->类型:float. 备注:今日开盘到此时总成交量
     sectional_amount -->类型:float. 备注:今日开盘到此时总成交额
     sectional_avg_price -->类型:float. 备注:今日开盘到此时加权平均价
-    
+    sectional_buy_avg_price -->类型:float. 备注:今日开盘到此时主买加权平均价
+    sectional_sell_avg_price -->类型:float. 备注:今日开盘到此时主卖加权平均价
     sectional_book_count -->类型:正整数. 备注:今日开盘到此时总成交笔数
     sectional_buy_book_count -->类型:正整数. 备注:今日开盘到此时主动买总成交笔数
     sectional_sell_book_count -->类型:正整数. 备注:今日开盘到此时主动卖总成交笔数
-    
     sectional_buy_volume -->类型:float. 备注:今日开盘到此时主动买入的成交量
     sectional_buy_amount -->类型:float. 备注:今日开盘到此时主动买入的成交额
-    sectional_buy_avg_price -->类型:float. 备注:今日开盘到此时主买加权平均价
     sectional_sell_volume -->类型:float. 备注:今日开盘到此时主动卖出的成交量
     sectional_sell_amount -->类型:float. 备注:今日开盘到此时主动卖出的成交额
-    sectional_sell_avg_price -->类型:float. 备注:今日开盘到此时主卖加权平均价
     prev_close_price -->类型:float. 备注:前一天收盘价
     next_price -->类型:float. 备注:下一个Kline的open_avg
     prev_price -->类型:float. 备注:前一个Kline的close_avg
@@ -158,16 +156,16 @@ TABLE t_symbol_info:
 10. close_avg:
    10s: 这根k线后2秒的trade数据拿出来(比如：00:00:8.000 - 00:00:9.999)，
          即 begin_dt + 8 * 1000 <= t < begin_dt + 10 * 1000
-         close_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
-         close_avg_check = sum(trade price * volume) / sum(volume)
+         open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+         open_avg_check = sum(trade price * volume) / sum(volume)
    1min: 这根k线后12秒的trade数据拿出来(比如：00:00:48.000 - 00:00:59.999)，
          即 begin_dt + 48 * 1000 <= t < begin_dt + 60 * 1000
-         close_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
-         close_avg_check = sum(trade price * volume) / sum(volume)
+         open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+         open_avg_check = sum(trade price * volume) / sum(volume)
    5min: 这根k线后1分钟的trade数据拿出来(比如：00:04:00.000 - 00:04:59.999)，
          即 begin_dt + 4 * 60 * 1000 <= t < begin_dt + 5 * 60 * 1000
-         close_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
-         close_avg_check = sum(trade price * volume) / sum(volume)
+         open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+         open_avg_check = sum(trade price * volume) / sum(volume)
 11. volume = begin_dt 和 end_dt之间的所有trade数据的volume之和
 12. amount = begin_dt 和 end_dt之间的所有的trade数据的amount之和
     amount_check = sum(trade price * volume)
