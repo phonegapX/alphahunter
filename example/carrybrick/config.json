@@ -13,11 +13,19 @@
             "secret_key": "xxxxxxxxxxxx"
         },
         {
-            "platform": "huobi_future",
+            "platform": "okex",
             "account": "test/subacc2",
             "access_key": "xxxxxxxxxxxx",
             "secret_key": "xxxxxxxxxxxx"
         }
     ],
-    "strategy": "my_test_strategy"
+    "MARKETS": {
+        "huobi": {
+            "symbols": ["ethusdt"]
+        },
+        "okex": {
+            "symbols": ["ETH-USDT"]
+        }
+    },
+    "strategy": "carrybrick"
 }

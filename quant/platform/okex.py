@@ -35,7 +35,7 @@ from quant.utils.websocket import Websocket
 from quant.utils.decorator import async_method_locker
 from quant.utils.http_client import AsyncHttpRequests
 from quant.order import ORDER_ACTION_BUY, ORDER_ACTION_SELL
-from quant.order import ORDER_TYPE_LIMIT, ORDER_TYPE_MARKET
+from quant.order import ORDER_TYPE_LIMIT, ORDER_TYPE_MARKET, ORDER_TYPE_IOC
 from quant.order import LIQUIDITY_TYPE_MAKER, LIQUIDITY_TYPE_TAKER
 from quant.order import ORDER_STATUS_SUBMITTED, ORDER_STATUS_PARTIAL_FILLED, ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED, ORDER_STATUS_FAILED
 from quant.market import Kline, Orderbook, Trade, Ticker
@@ -85,7 +85,7 @@ class OKExRestAPI:
         """ Create an order.
         Args:
             action: Action type, `BUY` or `SELL`.
-            symbol: Trading pair, e.g. BTCUSDT.
+            symbol: Trading pair, e.g. BTC-USDT.
             price: Order price.
             quantity: Order quantity.
             order_type: Order type, `MARKET` or `LIMIT`.
@@ -106,9 +106,14 @@ class OKExRestAPI:
         elif order_type == ORDER_TYPE_MARKET:
             info["type"] = "market"
             if action == ORDER_ACTION_BUY:
-                info["notional"] = quantity  # buy price.
+                info["notional"] = quantity  # 买金额.
             else:
                 info["size"] = quantity  # sell quantity.
+        elif order_type == ORDER_TYPE_IOC:
+            info["type"] = "limit"
+            info["price"] = price
+            info["size"] = quantity
+            info["order_type"] = "3"
         else:
             logger.error("order_type error! order_type:", order_type, caller=self)
             return None
@@ -268,9 +273,9 @@ class OKExTrader(Websocket, ExchangeGateway):
         self._access_key = kwargs["access_key"]
         self._secret_key = kwargs["secret_key"]
         self._passphrase = kwargs["passphrase"]
-        
-        self._host = "https://www.okex.com"
-        self._wss = "wss://real.okex.com:8443"
+
+        self._host = "https://www.okex.me"
+        self._wss = "wss://real.okex.me:8443"
 
         self._order_channel = []
         for sym in self._symbols:
@@ -282,13 +287,16 @@ class OKExTrader(Websocket, ExchangeGateway):
         
         self._syminfo:DefaultDict[str: Dict[str, Any]] = defaultdict(dict)
         
-        self._assets: DefaultDict[str: Dict[str, str]] = defaultdict(lambda: {k: "0" for k in {'free', 'locked', 'total'}})
+        self._assets: DefaultDict[str: Dict[str, float]] = defaultdict(lambda: {k: 0.0 for k in {'free', 'locked', 'total'}})
 
         # Initializing our REST API client.
         self._rest_api = OKExRestAPI(self._host, self._access_key, self._secret_key, self._passphrase)
 
-        self.initialize()
+        if self._account != None:
+            self.initialize()
 
+        #市场行情数据
+        OKExMarket(**kwargs)
 
     async def create_order(self, symbol, action, price, quantity, order_type=ORDER_TYPE_LIMIT, *args, **kwargs):
         """ Create an order.
@@ -313,28 +321,22 @@ class OKExTrader(Websocket, ExchangeGateway):
             return None, result
         return result["order_id"], None
 
-
-
     async def revoke_order(self, symbol, *order_nos):
-        """ Revoke (an) order(s).
-
-        Args:
-            symbol: Trade target
-            order_nos: Order id list, you can set this param to 0 or multiple items. If you set 0 param, you can cancel
-                all orders for this symbol(initialized in Trade object). If you set 1 param, you can cancel an order.
-                If you set multiple param, you can cancel multiple orders. Do not set param length more than 100.
-
-        Returns:
-            success: If execute successfully, return success information, otherwise it's None.
-            error: If execute failed, return error information, otherwise it's None.
+        """ 撤销订单
+        @param symbol 交易对
+        @param order_nos 订单号列表，可传入任意多个，如果不传入，那么就撤销所有订单
+        备注:关于批量删除订单函数返回值格式,如果函数调用失败了那肯定是return None, error
+        如果函数调用成功,但是多个订单有成功有失败的情况,比如输入3个订单id,成功2个,失败1个,那么
+        返回值统一都类似: 
+        return [(成功订单ID, None),(成功订单ID, None),(失败订单ID, "失败原因")], None
         """
         # If len(order_nos) == 0, you will cancel all orders for this symbol
         if len(order_nos) == 0:
-            order_infos, error = await self._rest_api.get_open_orders(symbol)
+            success, error = await self._rest_api.get_open_orders(symbol)
             if error:
                 return False, error
             order_nos = []
-            for order_info in order_infos:
+            for order_info in success:
                 order_nos.append(order_info["order_id"])
 
         if len(order_nos) == 0:
@@ -368,15 +370,12 @@ class OKExTrader(Websocket, ExchangeGateway):
             s, e = await self._rest_api.revoke_orders(symbol, order_nos)
             if e:
                 return [], e
-
             for d in s.get(symbol):
                 if d["result"]:
-                    success.append(d["order_id"])
-
-            return success, None
-
-
-
+                    result.append((d["order_id"], None))
+                else:
+                    result.append((d["order_id"], d["error_message"]))
+            return result, None
 
     async def get_orders(self, symbol):
         """ 获取当前挂单列表
@@ -397,7 +396,6 @@ class OKExTrader(Websocket, ExchangeGateway):
                 order = self._convert_order_format(order_info)
                 orders.append(order)
             return orders, None
-        
 
     async def get_assets(self):
         """ 获取交易账户资产信息
@@ -414,8 +412,6 @@ class OKExTrader(Websocket, ExchangeGateway):
             return None, error
         ast = self._convert_asset_format(success)
         return ast, None
-
-        
 
     async def get_position(self, symbol):
         """ 获取当前持仓
@@ -459,19 +455,55 @@ class OKExTrader(Websocket, ExchangeGateway):
         }
         ]
         """
-        success, error = await self._rest_api.get_symbols_info()
-        if error:
-            return None, error
-        for info in success:
-            if info["instrument_id"] == symbol:
-                price_tick = float(info["tick_size"])
-                size_tick = float(info["size_increment"])
-                size_limit = float(info["min_size"])
-                value_tick = None #原始数据中没有
-                value_limit = None#原始数据中没有
-                syminfo = SymbolInfo(self._platform, symbol, price_tick, size_tick, size_limit, value_tick, value_limit)
-                return syminfo, None
-        return None, "Symbol not exist"
+        info = self._syminfo[symbol]
+        if not info:
+            return None, "Symbol not exist"
+        price_tick = float(info["tick_size"])
+        size_tick = float(info["size_increment"])
+        size_limit = float(info["min_size"])
+        value_tick = None #原始数据中没有
+        value_limit = None#原始数据中没有
+        base_currency = info["base_currency"]
+        quote_currency = info["quote_currency"]
+        syminfo = SymbolInfo(self._platform, symbol, price_tick, size_tick, size_limit, value_tick, value_limit, base_currency, quote_currency)
+        return syminfo, None
+
+    async def invalid_indicate(self, symbol, indicate_type):
+        """ update (an) callback function.
+
+        Args:
+            symbol: Trade target
+            indicate_type: INDICATE_ORDER, INDICATE_ASSET, INDICATE_POSITION
+
+        Returns:
+            success: If execute successfully, return True, otherwise it's False.
+            error: If execute failed, return error information, otherwise it's None.
+        """
+        async def _task():
+            if indicate_type == INDICATE_ORDER and self.cb.on_order_update_callback:
+                success, error = await self.get_orders(symbol)
+                if error:
+                    state = State("get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    SingleTask.run(self.cb.on_state_update_callback, state)
+                    return
+                for order in success:
+                    SingleTask.run(self.cb.on_order_update_callback, order)
+            elif indicate_type == INDICATE_ASSET and self.cb.on_asset_update_callback:
+                success, error = await self.get_assets()
+                if error:
+                    state = State("get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    SingleTask.run(self.cb.on_state_update_callback, state)
+                    return
+                SingleTask.run(self.cb.on_asset_update_callback, success)
+
+        if indicate_type == INDICATE_ORDER or indicate_type == INDICATE_ASSET:
+            SingleTask.run(_task)
+            return True, None
+        elif indicate_type == INDICATE_POSITION:
+            raise NotImplementedError
+        else:
+            logger.error("indicate_type error! indicate_type:", indicate_type, caller=self)
+            return False, "indicate_type error"
 
     @property
     def rest_api(self):
@@ -489,7 +521,7 @@ class OKExTrader(Websocket, ExchangeGateway):
             "op": "login",
             "args": [self._access_key, self._passphrase, timestamp, signature]
         }
-        await self.ws.send_json(data)
+        await self.send_json(data)
 
     async def _auth_success_callback(self):
         """ 授权成功之后回调
@@ -521,8 +553,7 @@ class OKExTrader(Websocket, ExchangeGateway):
             SingleTask.run(self.cb.on_state_update_callback, state)
             return
         for info in success:
-            if info["instrument_id"] in self._symbols:
-                self._syminfo[info["instrument_id"]] = info
+            self._syminfo[info["instrument_id"]] = info #符号信息一般不变,获取一次保存好,其他地方要用直接从这个变量获取就可以了
 
         #获取账户余额,更新资产
         """
@@ -589,12 +620,12 @@ class OKExTrader(Websocket, ExchangeGateway):
             }
             ]
             """
-            order_infos, error = await self._rest_api.get_open_orders(sym)
+            success, error = await self._rest_api.get_open_orders(sym)
             if error:
                 state = State("get open orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                 SingleTask.run(self.cb.on_state_update_callback, state)
                 return
-            for order_info in order_infos:
+            for order_info in success:
                 self._update_order(order_info)
 
         # Subscribe order channel.
@@ -602,7 +633,7 @@ class OKExTrader(Websocket, ExchangeGateway):
             "op": "subscribe",
             "args": self._order_channel
         }
-        await self.ws.send_json(data)
+        await self.send_json(data)
         
         #订阅账户余额通知
         sl = []
@@ -618,8 +649,7 @@ class OKExTrader(Websocket, ExchangeGateway):
             "op": "subscribe",
             "args": account_channel
         }
-        await self.ws.send_json(data)
-
+        await self.send_json(data)
 
     @async_method_locker("OKExTrader.process_binary.locker")
     async def process_binary(self, raw):
@@ -694,15 +724,13 @@ class OKExTrader(Websocket, ExchangeGateway):
 
         elif msg.get("table") == "spot/account":
             self._update_asset(msg["data"])
-    
-    
-    
+
     def _convert_asset_format(self, data):
         for d in data:
             c = d["currency"]
-            self._assets[c]["free"] = d["available"]
-            self._assets[c]["locked"] = d["hold"]
-            self._assets[c]["total"] = d["balance"]
+            self._assets[c]["free"] = float(d["available"])
+            self._assets[c]["locked"] = float(d["hold"])
+            self._assets[c]["total"] = float(d["balance"])
         return Asset(self._platform, self._account, self._assets, tools.get_cur_timestamp_ms(), True)
     
     def _update_asset(self, data):
@@ -713,7 +741,6 @@ class OKExTrader(Websocket, ExchangeGateway):
     def _convert_order_format(self, order_info):
         order_no = str(order_info["order_id"])
         symbol = order_info["instrument_id"]
-        symbol = symbol.replace("-", "/")   #转变为界面上显示的符号格式
         remain = float(order_info["size"]) - float(order_info["filled_size"])
         ctime = tools.utctime_str_to_mts(order_info["created_at"])
         utime = tools.utctime_str_to_mts(order_info["timestamp"])
@@ -730,6 +757,13 @@ class OKExTrader(Websocket, ExchangeGateway):
             status = ORDER_STATUS_FILLED
         else:
             status = ORDER_STATUS_NONE
+        if order_info["type"] == "market":
+            order_type = ORDER_TYPE_MARKET
+        else:
+            if order_info["order_type"] == "3":
+                order_type = ORDER_TYPE_IOC
+            else:
+                order_type = ORDER_TYPE_LIMIT
         info = {
             "platform": self._platform,
             "account": self._account,
@@ -740,7 +774,7 @@ class OKExTrader(Websocket, ExchangeGateway):
             "price": float(order_info["price"]),
             "quantity": float(order_info["size"]),
             "remain": remain,
-            "order_type": ORDER_TYPE_MARKET if order_info["type"]=="market" else ORDER_TYPE_LIMIT,
+            "order_type": order_type,
             "status": status,
             "ctime": ctime,
             "utime": utime
@@ -757,19 +791,22 @@ class OKExTrader(Websocket, ExchangeGateway):
         Returns:
             None.
         """
+        if order_info["margin_trading"] != "1": # 1.币币交易订单 2.杠杆交易订单
+            return
         order = self._convert_order_format(order_info)
         if self.cb.on_order_update_callback:
             SingleTask.run(self.cb.on_order_update_callback, order)
         #=====================================================================================
-        #如果存在成交部分,就处理成交回调()
-        if order_info.get("last_fill_px") and order_info.get("last_fill_qty"):
+        #如果存在成交部分,就处理成交回调
+        if (order.status == ORDER_STATUS_PARTIAL_FILLED or order.status == ORDER_STATUS_FILLED) and \
+           order_info.get("last_fill_px") and order_info.get("last_fill_qty"):
             #liquidity = LIQUIDITY_TYPE_TAKER if order_info["role"]=="taker" else LIQUIDITY_TYPE_MAKER #原始数据中没有
             #fee = float(order_info["fees"]) #原始数据中没有,可以考虑自己计算
             f = {
                 "platform": self._platform,
                 "account": self._account,
                 "strategy": self._strategy,
-                "fill_no": tools.get_uuid1(),#原始数据中没有,自己生成一个
+                "fill_no": order_info["last_fill_id"],
                 "order_no": str(order_info["order_id"]),
                 "side": ORDER_ACTION_BUY if order_info["side"] == "buy" else ORDER_ACTION_SELL, #成交方向,买还是卖
                 "symbol": order_info["instrument_id"],
@@ -784,10 +821,6 @@ class OKExTrader(Websocket, ExchangeGateway):
                 SingleTask.run(self.cb.on_fill_update_callback, fill)
 
 
-
-
-
-
 class OKExMarket(Websocket):
     """ OKEx Market Server.
     """
@@ -796,21 +829,17 @@ class OKExMarket(Websocket):
         self._platform = kwargs["platform"]
         self._symbols = kwargs["symbols"]
         self._wss = "wss://real.okex.com:8443"
-        self._order_channel = []
-        for sym in self._symbols:
-            self._order_channel.append("spot/order:{symbol}".format(symbol=sym))
         url = self._wss + "/ws/v3"
         super(OKExTrader, self).__init__(url, send_hb_interval=5)
         self.heartbeat_msg = "ping"
-
-        self._orderbook_length = 10
+        
+        self._orderbook_length = 20
         self._orderbooks = {}  # 订单薄数据 {"symbol": {"bids": {"price": quantity, ...}, "asks": {...}}}
 
- 
     async def connected_callback(self):
         """After create Websocket connection successfully, we will subscribing orderbook/trade/kline."""
         ches = []
-        for ch in self._channels:
+        for ch in ["orderbook", "trade", "kline", "ticker"]:
             if ch == "orderbook" and self.cb.on_orderbook_update_callback:
                 for symbol in self._symbols:
                     ch = "spot/depth:{s}".format(s=symbol)
@@ -823,15 +852,16 @@ class OKExMarket(Websocket):
                 for symbol in self._symbols:
                     ch = "spot/candle60s:{s}".format(s=symbol)
                     ches.append(ch)
-            else:
-                logger.error("channel error! channel:", ch, caller=self)
+            elif ch == "ticker" and self.cb.on_ticker_update_callback:
+                for symbol in self._symbols:
+                    ch = "spot/ticker:{s}".format(s=symbol)
+                    ches.append(ch)
         if ches:
             msg = {
                 "op": "subscribe",
                 "args": ches
             }
-            await self.ws.send_json(msg)
-            logger.info("subscribe orderbook/trade/kline success.", caller=self)
+            await self.send_json(msg)
 
     async def process_binary(self, raw):
         """ Process binary message that received from Websocket connection.
@@ -847,7 +877,6 @@ class OKExMarket(Websocket):
         if msg == "pong":
             return
         msg = json.loads(msg)
-
         table = msg.get("table")
         if table == "spot/depth":
             if msg.get("action") == "partial":
@@ -855,7 +884,7 @@ class OKExMarket(Websocket):
                     await self.process_orderbook_partial(d)
             elif msg.get("action") == "update":
                 for d in msg["data"]:
-                    await self.deal_orderbook_update(d)
+                    await self.process_orderbook_update(d)
             else:
                 logger.warn("unhandle msg:", msg, caller=self)
         elif table == "spot/trade":
@@ -864,6 +893,9 @@ class OKExMarket(Websocket):
         elif table == "spot/candle60s":
             for d in msg["data"]:
                 await self.process_kline(d)
+        elif table == "spot/ticker":
+            for d in msg["data"]:
+                await self.process_ticker(d)
 
     async def process_orderbook_partial(self, data):
         """Process orderbook partical data."""
@@ -884,9 +916,9 @@ class OKExMarket(Websocket):
         timestamp = tools.utctime_str_to_mts(data.get("timestamp"))
         self._orderbooks[symbol]["timestamp"] = timestamp
 
-    async def deal_orderbook_update(self, data):
+    async def process_orderbook_update(self, data):
         """Process orderbook update data."""
-        symbol = data.get("instrument_id").replace("-", "/")
+        symbol = data.get("instrument_id")
         asks = data.get("asks")
         bids = data.get("bids")
         timestamp = tools.utctime_str_to_mts(data.get("timestamp"))
@@ -914,7 +946,7 @@ class OKExMarket(Websocket):
         await self.publish_orderbook(symbol)
 
     async def publish_orderbook(self, symbol):
-        ob = copy.copy(self._orderbooks[symbol])
+        ob = self._orderbooks[symbol]
         if not ob["asks"] or not ob["bids"]:
             logger.warn("symbol:", symbol, "asks:", ob["asks"], "bids:", ob["bids"], caller=self)
             return
@@ -927,14 +959,14 @@ class OKExMarket(Websocket):
 
         asks = []
         for k in ask_keys[:self._orderbook_length]:
-            price = "%.8f" % k
-            quantity = "%.8f" % ob["asks"].get(k)
+            price = k
+            quantity = ob["asks"].get(k)
             asks.append([price, quantity])
 
         bids = []
         for k in bid_keys[:self._orderbook_length]:
-            price = "%.8f" % k
-            quantity = "%.8f" % ob["bids"].get(k)
+            price = k
+            quantity = ob["bids"].get(k)
             bids.append([price, quantity])
 
         data = {
@@ -952,8 +984,8 @@ class OKExMarket(Websocket):
         if symbol not in self._symbols:
             return
         action = ORDER_ACTION_BUY if data["side"] == "buy" else ORDER_ACTION_SELL
-        price = "%.8f" % float(data["price"])
-        quantity = "%.8f" % float(data["size"])
+        price = float(data["price"])
+        quantity = float(data["size"])
         timestamp = tools.utctime_str_to_mts(data["timestamp"])
 
         data = {
@@ -972,12 +1004,11 @@ class OKExMarket(Websocket):
         if symbol not in self._symbols:
             return
         timestamp = tools.utctime_str_to_mts(data["candle"][0])
-        _open = "%.8f" % float(data["candle"][1])
-        high = "%.8f" % float(data["candle"][2])
-        low = "%.8f" % float(data["candle"][3])
-        close = "%.8f" % float(data["candle"][4])
-        volume = "%.8f" % float(data["candle"][5])
-
+        _open = float(data["candle"][1])
+        high = float(data["candle"][2])
+        low = float(data["candle"][3])
+        close = float(data["candle"][4])
+        volume = float(data["candle"][5])
         data = {
             "platform": self._platform,
             "symbol": symbol,
@@ -987,7 +1018,41 @@ class OKExMarket(Websocket):
             "close": close,
             "volume": volume,
             "timestamp": timestamp,
-            "kline_type": const.MARKET_TYPE_KLINE
+            "kline_type": MARKET_TYPE_KLINE
         }
         kline = Kline(**data)
         SingleTask.run(self.cb.on_kline_update_callback, kline)
+
+    async def process_ticker(self, data):
+        """
+        {
+        "table":"spot/ticker",
+        "data":[
+            {
+                "instrument_id":"ETH-USDT",
+                "last":"146.24",
+                "last_qty":"0.082483",
+                "best_bid":"146.24",
+                "best_bid_size":"0.006822",
+                "best_ask":"146.25",
+                "best_ask_size":"80.541709",
+                "open_24h":"147.17",
+                "high_24h":"147.48",
+                "low_24h":"143.88",
+                "base_volume_24h":"117387.58",
+                "quote_volume_24h":"17159427.21",
+                "timestamp":"2019-12-11T02:31:40.436Z"
+            }
+        ]
+        }
+        """
+        p = {
+            "platform": self._platform,
+            "symbol": data["instrument_id"],
+            "ask": float(data["best_ask"]),
+            "bid": float(data["best_bid"]),
+            "last": float(data["last"]),
+            "timestamp": tools.utctime_str_to_mts(data["timestamp"])
+        }
+        ticker = Ticker(**p)
+        SingleTask.run(self.cb.on_ticker_update_callback, ticker)

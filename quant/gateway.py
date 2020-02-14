@@ -101,7 +101,19 @@ class ExchangeGateway(with_metaclass(ABCMeta)):
             success: If execute successfully, return success information, otherwise it's None.
             error: If execute failed, return error information, otherwise it's None.
         """
-    
+
+    @abstractmethod
+    async def invalid_indicate(self, symbol, indicate_type):
+        """ update (an) callback function.
+
+        Args:
+            symbol: Trade target
+            indicate_type: INDICATE_ORDER, INDICATE_ASSET, INDICATE_POSITION
+
+        Returns:
+            success: If execute successfully, return True, otherwise it's False.
+            error: If execute failed, return error information, otherwise it's None.
+        """
     
     class ICallBack(with_metaclass(ABCMeta)):
         """
