@@ -185,11 +185,6 @@ class FTXTrader(Websocket, ExchangeGateway):
             SingleTask.run(self.cb.on_state_update_callback, state)
             return
 
-        if not kwargs.get("host"):
-            kwargs["host"] = "https://ftx.com"
-        if not kwargs.get("wss"):
-            kwargs["wss"] = "wss://ftx.com"
-
         self._account = kwargs.get("account")
         self._access_key = kwargs.get("access_key")
         self._secret_key = kwargs.get("secret_key")
@@ -197,29 +192,28 @@ class FTXTrader(Websocket, ExchangeGateway):
         self._strategy = kwargs["strategy"]
         self._platform = kwargs["platform"]
         self._symbols = kwargs["symbols"]
-        self._host = kwargs["host"]
-        self._wss = kwargs["wss"]
+        self._host = "https://ftx.com"
+        self._wss = "wss://ftx.com"
         
         url = self._wss + "/ws"
-        super(FTXTrader, self).__init__(url, check_conn_interval=5, send_hb_interval=0)
-        #self.heartbeat_msg = "ping"
+        super(FTXTrader, self).__init__(url, send_hb_interval=15, **kwargs)
+        self.heartbeat_msg = {"op": "ping"}
 
         # Initializing our REST API client.
         self._rest_api = FTXRestAPI(self._host, self._access_key, self._secret_key, self._subaccount_name)
-        
-        self.raw_kwargs = {
-            "platform": kwargs["platform"],
-            "account": kwargs.get("account"),
-            "symbols": kwargs["symbols"],
-            "strategy": kwargs["strategy"]
-        }
-        
+
         #订单簿深度数据
         self._orderbooks: DefaultDict[str, Dict[str, DefaultDict[float, float]]] = defaultdict(lambda: {side: defaultdict(float) for side in {'bids', 'asks'}})
         
-        self._assets = {}
+        self._assets: DefaultDict[str: Dict[str, float]] = defaultdict(lambda: {k: 0.0 for k in {'free', 'locked', 'total'}})
         
-        self.initialize()
+        self._syminfo:DefaultDict[str: Dict[str, Any]] = defaultdict(dict)
+        
+        if self._account != None:
+            self.initialize()
+
+        #市场行情数据
+        FTXMarket(**kwargs)
 
     @property
     def rest_api(self):
@@ -252,8 +246,10 @@ class FTXTrader(Websocket, ExchangeGateway):
         
         if order_type == ORDER_TYPE_LIMIT:
             ot = "limit"
-        else:
+        elif order_type == ORDER_TYPE_MARKET:
             ot = "market"
+        else:
+            raise NotImplementedError
 
         success, error = await self._rest_api.place_order(symbol, side, price, size, ot)
         if error:
@@ -288,14 +284,14 @@ class FTXTrader(Websocket, ExchangeGateway):
             return True, None
         # If len(order_nos) > 0, you will cancel an or multiple orders.
         else:
-            success, error = [], []
+            result = []
             for order_no in order_nos:
                 _, e = await self._rest_api.cancel_order(order_no)
                 if e:
-                    error.append((order_no, e))
+                    result.append((order_no, e))
                 else:
-                    success.append(order_no)
-            return tuple(success), tuple(error)
+                    result.append((order_no, None))
+            return tuple(result), None
 
     async def get_assets(self):
         """ 获取交易账户资产信息
@@ -324,9 +320,9 @@ class FTXTrader(Websocket, ExchangeGateway):
         free = float(data["freeCollateral"])
         locked = total - free
         assets["USD"] = {
-            "total": "%.8f" % total,
-            "free": "%.8f" % free,
-            "locked": "%.8f" % locked
+            "total": total,
+            "free": free,
+            "locked": locked
         }
         if assets == self._assets:
             update = False
@@ -336,10 +332,6 @@ class FTXTrader(Websocket, ExchangeGateway):
         timestamp = tools.get_cur_timestamp_ms()
         
         ast = Asset(self._platform, self._account, self._assets, timestamp, update)
-        
-        #因为ftx websocket接口里面没有资产通知,所以只能这样模拟
-        if self.cb.on_asset_update_callback:
-            SingleTask.run(self.cb.on_asset_update_callback, ast)
         
         return ast, None
 
@@ -352,7 +344,7 @@ class FTXTrader(Websocket, ExchangeGateway):
         filled = float(o["filledSize"])
         size = float(o["size"])
         price = None if o["price"]==None else float(o["price"])
-        avg_price = None if o["avgFillPrice"]==None else float(o["avgFillPrice"])      
+        avg_price = None if o["avgFillPrice"]==None else float(o["avgFillPrice"])
         if state == "new":
             status = ORDER_STATUS_SUBMITTED
         elif state == "open":
@@ -449,10 +441,6 @@ class FTXTrader(Websocket, ExchangeGateway):
             #多头仓位
             pos.update(long_quantity=abs(p["netSize"]), long_avg_price=p["recentAverageOpenPrice"], liquid_price=p["estimatedLiquidationPrice"])
 
-        #因为ftx websocket接口里面没有仓位通知,所以只能这样模拟
-        if self.cb.on_position_update_callback:
-            SingleTask.run(self.cb.on_position_update_callback, pos)
-
         return pos, None
 
     async def get_symbol_info(self, symbol):
@@ -465,19 +453,83 @@ class FTXTrader(Websocket, ExchangeGateway):
             symbol_info: SymbolInfo if successfully, otherwise it's None.
             error: Error information, otherwise it's None.
         """
-        #{"result": {"ask": 150.42, "bid": 150.39, "change1h": 0.0019984012789768186, "change24h": -0.0572234409276089, "changeBod": 0.004407051282051282, "description": "Ethereum Perpetual Futures", "enabled": true, "expired": false, "expiry": null, "expiryDescription": "Perpetual", "index": 150.60309063, "last": 150.53, "lowerBound": 143.0, "mark": 150.42, "moveStart": null, "name": "ETH-PERP", "perpetual": true, "postOnly": false, "priceIncrement": 0.01, "sizeIncrement": 0.001, "type": "perpetual", "underlying": "ETH", "underlyingDescription": "Ethereum", "upperBound": 158.13, "volume": 244685.546, "volumeUsd24h": 36640126.93856}, "success": true}
-
-        success, error = await self._rest_api.get_future(symbol)
-        if error:
-            return None, error
-        if not success["success"]:
-            return None, "get_future error"
-
-        data = success["result"]
-
-        syminfo = SymbolInfo(self._platform, symbol, price_tick=data["priceIncrement"], size_tick=data["sizeIncrement"])
-
+        """
+        {
+        "success": true,
+        "result": [
+          {
+            "name": "BTC-0628",
+            "baseCurrency": null,
+            "quoteCurrency": null,
+            "type": "future",
+            "underlying": "BTC",
+            "enabled": true,
+            "ask": 3949.25,
+            "bid": 3949,
+            "last": 10579.52,
+            "priceIncrement": 0.25,
+            "sizeIncrement": 0.001
+          }
+        ]
+        }
+        """
+        info = self._syminfo[symbol]
+        if not info:
+            return None, "Symbol not exist"
+        price_tick = float(info["priceIncrement"])
+        size_tick = float(info["sizeIncrement"])
+        size_limit = None #原始数据中没有
+        value_tick = None #原始数据中没有
+        value_limit = None #原始数据中没有
+        if info["type"] == "future":
+            base_currency = info["underlying"]
+            quote_currency = "USD"
+        else: #"spot"
+            base_currency = info["baseCurrency"]
+            quote_currency = info["quoteCurrency"]
+        syminfo = SymbolInfo(self._platform, symbol, price_tick, size_tick, size_limit, value_tick, value_limit, base_currency, quote_currency)
         return syminfo, None
+
+    async def invalid_indicate(self, symbol, indicate_type):
+        """ update (an) callback function.
+
+        Args:
+            symbol: Trade target
+            indicate_type: INDICATE_ORDER, INDICATE_ASSET, INDICATE_POSITION
+
+        Returns:
+            success: If execute successfully, return True, otherwise it's False.
+            error: If execute failed, return error information, otherwise it's None.
+        """
+        async def _task():
+            if indicate_type == INDICATE_ORDER and self.cb.on_order_update_callback:
+                success, error = await self.get_orders(symbol)
+                if error:
+                    state = State("get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    SingleTask.run(self.cb.on_state_update_callback, state)
+                    return
+                for order in success:
+                    SingleTask.run(self.cb.on_order_update_callback, order)
+            elif indicate_type == INDICATE_ASSET and self.cb.on_asset_update_callback:
+                success, error = await self.get_assets()
+                if error:
+                    state = State("get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    SingleTask.run(self.cb.on_state_update_callback, state)
+                    return
+                SingleTask.run(self.cb.on_asset_update_callback, success)
+            elif indicate_type == INDICATE_POSITION and self.cb.on_position_update_callback:
+                success, error = await self.get_position()
+                if error:
+                    state = State("get_position error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    SingleTask.run(self.cb.on_state_update_callback, state)
+                    return
+                SingleTask.run(self.cb.on_position_update_callback, success)
+        if indicate_type == INDICATE_ORDER or indicate_type == INDICATE_ASSET or indicate_type == INDICATE_POSITION:
+            SingleTask.run(_task)
+            return True, None
+        else:
+            logger.error("indicate_type error! indicate_type:", indicate_type, caller=self)
+            return False, "indicate_type error"
 
     async def _login(self):
         """FTX的websocket接口真是逗逼,验证成功的情况下居然不会返回任何消息"""
@@ -492,8 +544,197 @@ class FTXTrader(Websocket, ExchangeGateway):
         if self._subaccount_name:
             args["subaccount"] = self._subaccount_name
         data = {'op': 'login', 'args': args}
-        await self.ws.send_json(data)
+        await self.send_json(data)
 
+    async def connected_callback(self):
+        """网络链接成功回调
+        """
+        if self._account != None:
+            #账号不为空就要进行登录认证,然后订阅2个需要登录后才能订阅的私有频道:用户挂单通知和挂单成交通知(FTX只支持这2个私有频道)
+            await self._login() #登录认证
+
+            success, error = await self._rest_api.list_markets()
+            if error:
+                state = State("list_markets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                SingleTask.run(self.cb.on_state_update_callback, state)
+                return
+            for info in success:
+                self._syminfo[info["name"]] = info #符号信息一般不变,获取一次保存好,其他地方要用直接从这个变量获取就可以了
+
+            if self.cb.on_order_update_callback != None:
+                for sym in self._symbols:
+                    orders, error = await self.get_orders(sym)
+                    if error:
+                        state = State("get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                        SingleTask.run(self.cb.on_state_update_callback, state)
+                        return
+                    for o in orders:
+                        SingleTask.run(self.cb.on_order_update_callback, o)
+
+            if self.cb.on_position_update_callback != None:
+                for sym in self._symbols:
+                    pos, error = await self.get_position(sym)
+                    if error:
+                        state = State("get_position error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                        SingleTask.run(self.cb.on_state_update_callback, state)
+                        return
+                    SingleTask.run(self.cb.on_position_update_callback, pos)
+
+            if self.cb.on_asset_update_callback != None:
+                ast, error = await self.get_assets()
+                if error:
+                    state = State("get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    SingleTask.run(self.cb.on_state_update_callback, state)
+                    return
+                SingleTask.run(self.cb.on_asset_update_callback, ast)
+
+            #`用户挂单通知回调`不为空,就进行订阅
+            if self.cb.on_order_update_callback != None:
+                await self.send_json({'op': 'subscribe', 'channel': 'orders'})
+            #`用户挂单成交通知回调`不为空,就进行订阅
+            if self.cb.on_fill_update_callback != None:
+                await self.send_json({'op': 'subscribe', 'channel': 'fills'})
+
+            #计数初始化0
+            self._subscribe_response_count = 0
+
+    async def process(self, msg):
+        """ Process message that received from websocket.
+
+        Args:
+            msg: message received from websocket.
+
+        Returns:
+            None.
+        """
+        if not isinstance(msg, dict):
+            return
+        logger.debug("msg:", json.dumps(msg), caller=self)
+        
+        #{"type": "error", "code": 400, "msg": "Invalid login credentials"}
+        if msg["type"] == "error":
+            state = State("Websocket connection failed: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
+            logger.error(state, caller=self)
+            SingleTask.run(self.cb.on_state_update_callback, state)
+            return
+        
+        if msg["type"] == "info" and msg["code"] == 20001:
+            #交易所重启了,我们就断开连接,websocket会自动重连
+            @async_method_locker("FTXTrader._ws_close.locker")
+            async def _ws_close(self):
+                await self.socket_close()
+            SingleTask.run(self._ws_close)
+            return
+        
+        #{'type': 'subscribed', 'channel': 'trades', 'market': 'BTC-PERP'}
+        if msg["type"] == "unsubscribed":
+            return
+        
+        if msg["type"] == "subscribed":
+            self._subscribe_response_count = self._subscribe_response_count + 1 #每来一次订阅响应计数就加一
+            if self._subscribe_response_count == 2: #所有的订阅都成功了,通知上层接口都准备好了
+                state = State("Environment ready", State.STATE_CODE_READY)
+                SingleTask.run(self.cb.on_state_update_callback, state)
+            return
+
+        channel = msg['channel']
+        if channel == 'orders':
+            self._update_order(msg)
+        elif channel == 'fills':
+            self._update_fill(msg)
+
+    def _update_order(self, order_info):
+        """ Order update.
+
+        Args:
+            order_info: Order information.
+
+        Returns:
+            None.
+        """
+        #new (accepted but not processed yet), open, or closed (filled or cancelled)
+
+        #开仓
+        #{"id": 742849571, "clientId": null, "market": "ETH-PERP", "type": "limit", "side": "buy", "price": 150.0, "size": 0.003, "status": "new", "filledSize": 0.0, "remainingSize": 0.003, "reduceOnly": false, "avgFillPrice": null, "postOnly": false, "ioc": false}
+        
+        #150->修改->151
+        #{"id": 742849571, "clientId": null, "market": "ETH-PERP", "type": "limit", "side": "buy", "price": 150.0, "size": 0.003, "status": "closed", "filledSize": 0.0, "remainingSize": 0.0, "reduceOnly": false, "avgFillPrice": null, "postOnly": false, "ioc": false}
+        #{"id": 742853455, "clientId": null, "market": "ETH-PERP", "type": "limit", "side": "buy", "price": 151.0, "size": 0.003, "status": "new", "filledSize": 0.0, "remainingSize": 0.003, "reduceOnly": false, "avgFillPrice": null, "postOnly": false, "ioc": false}
+        
+        #151->修改->187->成交
+        #{"id": 742853455, "clientId": null, "market": "ETH-PERP", "type": "limit", "side": "buy", "price": 151.0, "size": 0.003, "status": "closed", "filledSize": 0.0, "remainingSize": 0.0, "reduceOnly": false, "avgFillPrice": null, "postOnly": false, "ioc": false}
+        #{"id": 742862380, "clientId": null, "market": "ETH-PERP", "type": "limit", "side": "buy", "price": 187.0, "size": 0.003, "status": "closed", "filledSize": 0.003, "remainingSize": 0.0, "reduceOnly": false, "avgFillPrice": 186.96, "postOnly": false, "ioc": false}
+        
+        #市价全平仓位
+        #{"id": 742875876, "clientId": null, "market": "ETH-PERP", "type": "market", "side": "sell", "price": null, "size": 0.003, "status": "closed", "filledSize": 0.003, "remainingSize": 0.0, "reduceOnly": true, "avgFillPrice": 186.79, "postOnly": false, "ioc": true}
+        
+        o = order_info["data"]
+        
+        order = self._convert_order_format(o)
+        if order == None:
+            return
+
+        SingleTask.run(self.cb.on_order_update_callback, order)
+
+    def _update_fill(self, fill_info):
+        """ Fill update.
+
+        Args:
+            fill_info: Fill information.
+
+        Returns:
+            None.
+        """       
+        #{"channel": "orders", "type": "update", "data": {"id": 751733812, "clientId": null, "market": "ETH-PERP", "type": "limit", "side": "buy", "price": 187.93, "size": 0.001, "status": "closed", "filledSize": 0.001, "remainingSize": 0.0, "reduceOnly": false, "avgFillPrice": 184.25, "postOnly": false, "ioc": false}} 
+        #{"channel": "fills", "type": "update", "data": {"id": 5741311, "market": "ETH-PERP", "future": "ETH-PERP", "baseCurrency": null, "quoteCurrency": null, "type": "order", "side": "buy", "price": 184.25, "size": 0.001, "orderId": 751733812, "time": "2019-11-08T09:52:27.366467+00:00", "feeRate": 0.0007, "fee": 0.000128975, "liquidity": "taker"}} 
+
+        data = fill_info["data"]
+        
+        fill_no = str(data["id"])
+        order_no = str(data["orderId"])
+        price = float(data["price"])
+        size = float(data["size"])
+        fee = float(data["fee"])
+        ts = tools.utctime_str_to_mts(data["time"], "%Y-%m-%dT%H:%M:%S.%f+00:00")
+        liquidity = LIQUIDITY_TYPE_TAKER if data["liquidity"]=="taker" else LIQUIDITY_TYPE_MAKER
+        
+        info = {
+            "platform": self._platform,
+            "account": self._account,
+            "strategy": self._strategy,
+            "fill_no": fill_no,
+            "order_no": order_no,
+            "side": ORDER_ACTION_BUY if data["side"] == "buy" else ORDER_ACTION_SELL,
+            "symbol": data["market"],
+            "price": price,
+            "quantity": size,
+            "liquidity": liquidity,
+            "fee": fee,
+            "ctime": ts
+        }
+        fill = Fill(**info)
+        SingleTask.run(self.cb.on_fill_update_callback, fill)
+
+
+class FTXMarket(Websocket):
+    """ FTX Trade module. You can initialize trader object with some attributes in kwargs.
+    """
+
+    def __init__(self, **kwargs):
+        """Initialize."""
+        self._platform = kwargs["platform"]
+        self._symbols = kwargs["symbols"]
+        self._host = "https://ftx.com"
+        self._wss = "wss://ftx.com"
+        url = self._wss + "/ws"
+        super(FTXMarket, self).__init__(url, send_hb_interval=15, **kwargs)
+        self.heartbeat_msg = {"op": "ping"}
+
+        #订单簿深度数据
+        self._orderbooks: DefaultDict[str, Dict[str, DefaultDict[float, float]]] = defaultdict(lambda: {side: defaultdict(float) for side in {'bids', 'asks'}})
+        
+        self.initialize()
+    
     async def _kline_loop_query(self, symbol, *args, **kwargs):
         #{"result": [{"close": 7088.5, "high": 7090.0, "low": 7085.75, "open": 7090.0, "startTime": "2019-11-26T16:44:00+00:00", "time": 1574786640000.0, "volume": 0.70885}, {"close": 7088.0, "high": 7088.75, "low": 7088.0, "open": 7088.5, "startTime": "2019-11-26T16:45:00+00:00", "time": 1574786700000.0, "volume": 0.708875}], "success": true}
         success, error = await self._rest_api.get_kline(symbol, 60, 2) #取2个时间窗口的数据
@@ -508,26 +749,16 @@ class FTXTrader(Websocket, ExchangeGateway):
     async def connected_callback(self):
         """网络链接成功回调
         """
-        if self._account != None:
-            #账号不为空就要进行登录认证,然后订阅2个需要登录后才能订阅的私有频道:用户挂单通知和挂单成交通知(FTX只支持这2个私有频道)
-            await self._login() #登录认证
-            #`用户挂单通知回调`不为空,就进行订阅
-            if self.cb.on_order_update_callback != None:
-                await self.ws.send_json({'op': 'subscribe', 'channel': 'orders'})
-            #`用户挂单成交通知回调`不为空,就进行订阅
-            if self.cb.on_fill_update_callback != None:
-                await self.ws.send_json({'op': 'subscribe', 'channel': 'fills'})
-
         #订阅公共频道,无需登录认证
         for sym in self._symbols:
             if self.cb.on_trade_update_callback != None:
-                await self.ws.send_json({'op': 'subscribe', 'channel': 'trades', 'market': sym})
+                await self.send_json({'op': 'subscribe', 'channel': 'trades', 'market': sym})
 
             if self.cb.on_orderbook_update_callback != None:
-                await self.ws.send_json({'op': 'subscribe', 'channel': 'orderbook', 'market': sym})
+                await self.send_json({'op': 'subscribe', 'channel': 'orderbook', 'market': sym})
 
             if self.cb.on_ticker_update_callback != None:
-                await self.ws.send_json({'op': 'subscribe', 'channel': 'ticker', 'market': sym})
+                await self.send_json({'op': 'subscribe', 'channel': 'ticker', 'market': sym})
 
             if self.cb.on_kline_update_callback != None:
                 LoopRunTask.register(self._kline_loop_query, 60, sym)
@@ -541,7 +772,6 @@ class FTXTrader(Websocket, ExchangeGateway):
         Returns:
             None.
         """
-        
         if not isinstance(msg, dict):
             return
         logger.debug("msg:", json.dumps(msg), caller=self)
@@ -550,14 +780,14 @@ class FTXTrader(Websocket, ExchangeGateway):
         if msg["type"] == "error":
             state = State("Websocket connection failed: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
             logger.error(state, caller=self)
-            SingleTask.run(self.cb.on_state_update_callback, state, **self.raw_kwargs)
+            SingleTask.run(self.cb.on_state_update_callback, state)
             return
         
         if msg["type"] == "info" and msg["code"] == 20001:
             #交易所重启了,我们就断开连接,websocket会自动重连
-            @async_method_locker("FTXTrader._ws_close.locker")
+            @async_method_locker("FTXMarket._ws_close.locker")
             async def _ws_close(self):
-                await self.ws.close()
+                await self.socket_close()
             SingleTask.run(self._ws_close)
             return
         
@@ -566,13 +796,6 @@ class FTXTrader(Websocket, ExchangeGateway):
             return
         
         if msg["type"] == "subscribed":
-            for sym in self._symbols:
-                if self.cb.on_order_update_callback != None:
-                    orders, err = await self.get_orders(sym)
-                    if not err:
-                        for o in orders:
-                            SingleTask.run(self.cb.on_order_update_callback, o)
-            #end for
             return
 
         channel = msg['channel']
@@ -582,10 +805,6 @@ class FTXTrader(Websocket, ExchangeGateway):
             self._update_trades(msg)
         elif channel == 'ticker':
             self._update_ticker(msg)
-        elif channel == 'orders':
-            self._update_order(msg)
-        elif channel == 'fills':
-            self._update_fill(msg)
 
     def _update_ticker(self, ticker_info):
         """ ticker update.
@@ -674,8 +893,8 @@ class FTXTrader(Websocket, ExchangeGateway):
             #校验和不对就需要重新订阅深度信息
             @async_method_locker("FTXTrader._re_subscribe.locker")
             async def _re_subscribe(self):
-                await self.ws.send_json({'op': 'unsubscribe', 'channel': 'orderbook', 'market': market})
-                await self.ws.send_json({'op': 'subscribe', 'channel': 'orderbook', 'market': market})
+                await self.send_json({'op': 'unsubscribe', 'channel': 'orderbook', 'market': market})
+                await self.send_json({'op': 'subscribe', 'channel': 'orderbook', 'market': market})
             SingleTask.run(self._re_subscribe)
             #校验和不对就退出
             return
@@ -692,78 +911,6 @@ class FTXTrader(Websocket, ExchangeGateway):
         }
         ob = Orderbook(**p)
         SingleTask.run(self.cb.on_orderbook_update_callback, ob)
-
-    def _update_order(self, order_info):
-        """ Order update.
-
-        Args:
-            order_info: Order information.
-
-        Returns:
-            None.
-        """
-        #new (accepted but not processed yet), open, or closed (filled or cancelled)
-
-        #开仓
-        #{"id": 742849571, "clientId": null, "market": "ETH-PERP", "type": "limit", "side": "buy", "price": 150.0, "size": 0.003, "status": "new", "filledSize": 0.0, "remainingSize": 0.003, "reduceOnly": false, "avgFillPrice": null, "postOnly": false, "ioc": false}
-        
-        #150->修改->151
-        #{"id": 742849571, "clientId": null, "market": "ETH-PERP", "type": "limit", "side": "buy", "price": 150.0, "size": 0.003, "status": "closed", "filledSize": 0.0, "remainingSize": 0.0, "reduceOnly": false, "avgFillPrice": null, "postOnly": false, "ioc": false}
-        #{"id": 742853455, "clientId": null, "market": "ETH-PERP", "type": "limit", "side": "buy", "price": 151.0, "size": 0.003, "status": "new", "filledSize": 0.0, "remainingSize": 0.003, "reduceOnly": false, "avgFillPrice": null, "postOnly": false, "ioc": false}
-        
-        #151->修改->187->成交
-        #{"id": 742853455, "clientId": null, "market": "ETH-PERP", "type": "limit", "side": "buy", "price": 151.0, "size": 0.003, "status": "closed", "filledSize": 0.0, "remainingSize": 0.0, "reduceOnly": false, "avgFillPrice": null, "postOnly": false, "ioc": false}
-        #{"id": 742862380, "clientId": null, "market": "ETH-PERP", "type": "limit", "side": "buy", "price": 187.0, "size": 0.003, "status": "closed", "filledSize": 0.003, "remainingSize": 0.0, "reduceOnly": false, "avgFillPrice": 186.96, "postOnly": false, "ioc": false}
-        
-        #市价全平仓位
-        #{"id": 742875876, "clientId": null, "market": "ETH-PERP", "type": "market", "side": "sell", "price": null, "size": 0.003, "status": "closed", "filledSize": 0.003, "remainingSize": 0.0, "reduceOnly": true, "avgFillPrice": 186.79, "postOnly": false, "ioc": true}
-        
-        o = order_info["data"]
-        
-        order = self._convert_order_format(o)
-        if order == None:
-            return
-
-        SingleTask.run(self.cb.on_order_update_callback, order)
-
-    def _update_fill(self, fill_info):
-        """ Fill update.
-
-        Args:
-            fill_info: Fill information.
-
-        Returns:
-            None.
-        """       
-        #{"channel": "orders", "type": "update", "data": {"id": 751733812, "clientId": null, "market": "ETH-PERP", "type": "limit", "side": "buy", "price": 187.93, "size": 0.001, "status": "closed", "filledSize": 0.001, "remainingSize": 0.0, "reduceOnly": false, "avgFillPrice": 184.25, "postOnly": false, "ioc": false}} 
-        #{"channel": "fills", "type": "update", "data": {"id": 5741311, "market": "ETH-PERP", "future": "ETH-PERP", "baseCurrency": null, "quoteCurrency": null, "type": "order", "side": "buy", "price": 184.25, "size": 0.001, "orderId": 751733812, "time": "2019-11-08T09:52:27.366467+00:00", "feeRate": 0.0007, "fee": 0.000128975, "liquidity": "taker"}} 
-
-        data = fill_info["data"]
-        
-        fill_no = str(data["id"])
-        order_no = str(data["orderId"])
-        price = float(data["price"])
-        size = float(data["size"])
-        fee = float(data["fee"])
-        ts = tools.utctime_str_to_mts(data["time"], "%Y-%m-%dT%H:%M:%S.%f+00:00")
-        liquidity = LIQUIDITY_TYPE_TAKER if data["liquidity"]=="taker" else LIQUIDITY_TYPE_MAKER
-        
-        info = {
-            "platform": self._platform,
-            "account": self._account,
-            "strategy": self._strategy,
-            "fill_no": fill_no,
-            "order_no": order_no,
-            "side": ORDER_ACTION_BUY if data["side"] == "buy" else ORDER_ACTION_SELL,
-            "symbol": data["market"],
-            "price": price,
-            "quantity": size,
-            "liquidity": liquidity,
-            "fee": fee,
-            "ctime": ts
-        }
-        fill = Fill(**info)
-        SingleTask.run(self.cb.on_fill_update_callback, fill)
 
     def _update_kline(self, kline_info, symbol):
         """ kline update.

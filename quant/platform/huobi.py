@@ -243,19 +243,12 @@ class HuobiTrader(Websocket, ExchangeGateway):
         self._wss = "wss://api.huobi.io"
         
         url = self._wss + "/ws/v1"
-        super(HuobiTrader, self).__init__(url, check_conn_interval=5, send_hb_interval=0, **kwargs)
+        super(HuobiTrader, self).__init__(url, send_hb_interval=0, **kwargs)
         #self.heartbeat_msg = "ping"
 
         # Initializing our REST API client.
         self._rest_api = HuobiRestAPI(self._host, self._access_key, self._secret_key)
-        
-        self.raw_kwargs = {
-            "platform": kwargs["platform"],
-            "account": kwargs.get("account"),
-            "symbols": kwargs["symbols"],
-            "strategy": kwargs["strategy"]
-        }
-        
+
         self._account_id = None
 
         self._syminfo:DefaultDict[str: Dict[str, Any]] = defaultdict(dict)
@@ -1004,7 +997,7 @@ class HuobiMarket(Websocket):
         self._symbols = kwargs["symbols"]
         self._wss = "wss://api.huobi.io"
         url = self._wss + "/ws"
-        super(HuobiMarket, self).__init__(url, check_conn_interval=5, send_hb_interval=0, **kwargs)
+        super(HuobiMarket, self).__init__(url, send_hb_interval=0, **kwargs)
         #self.heartbeat_msg = "ping"
         self._c_to_s = {}  # {"channel": "symbol"}
         self.initialize()
