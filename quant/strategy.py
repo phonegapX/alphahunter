@@ -271,7 +271,7 @@ class Strategy(ExchangeGateway.ICallBack):
             error.append(t.result()[1])
         return tuple(success), tuple(error)
     
-    async def create_order(self, gateway, symbol, action, price, quantity, order_type=ORDER_TYPE_LIMIT, **kwargs):
+    async def create_order(self, gateway, symbol, action, price:float, quantity:float, order_type=ORDER_TYPE_LIMIT, **kwargs):
         """ Create an order.
 
         Args:

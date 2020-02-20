@@ -629,27 +629,29 @@ class OKExTrader(Websocket, ExchangeGateway):
                 self._update_order(order_info)
 
         # Subscribe order channel.
-        data = {
-            "op": "subscribe",
-            "args": self._order_channel
-        }
-        await self.send_json(data)
+        if self.cb.on_order_update_callback or self.cb.on_fill_update_callback:
+            data = {
+                "op": "subscribe",
+                "args": self._order_channel
+            }
+            await self.send_json(data)
         
         #订阅账户余额通知
-        sl = []
-        for si in self._syminfo:
-            sl.append(si["base_currency"])
-            sl.append(si["quote_currency"])
-        #set的目的是去重
-        self._account_channel = []
-        for s in set(sl):
-            self._account_channel.append("spot/account:{symbol}".format(symbol=s))
-        #发送订阅
-        data = {
-            "op": "subscribe",
-            "args": self._account_channel
-        }
-        await self.send_json(data)
+        if self.cb.on_asset_update_callback:
+            sl = []
+            for si in self._syminfo:
+                sl.append(si["base_currency"])
+                sl.append(si["quote_currency"])
+            #set的目的是去重
+            self._account_channel = []
+            for s in set(sl):
+                self._account_channel.append("spot/account:{symbol}".format(symbol=s))
+            #发送订阅
+            data = {
+                "op": "subscribe",
+                "args": self._account_channel
+            }
+            await self.send_json(data)
         
         #计数初始化0
         self._subscribe_response_count = 0

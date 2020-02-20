@@ -73,7 +73,7 @@ class HuobiRestAPI:
     async def get_user_accounts(self):
         """ 获取账户信息
         """
-        return await self.request("GET", "/v1/account/accounts")
+        return await self.request("GET", "/v1/account/accounts", auth=True)
 
     async def get_account_id(self):
         """ 获取账户id
@@ -94,12 +94,12 @@ class HuobiRestAPI:
         """
         account_id = await self.get_account_id()
         uri = "/v1/account/accounts/{account_id}/balance".format(account_id=account_id)
-        return await self.request("GET", uri)
+        return await self.request("GET", uri, auth=True)
 
     async def get_balance_all(self):
         """ 母账户查询其下所有子账户的各币种汇总余额
         """
-        return await self.request("GET", "/v1/subuser/aggregate-balance")
+        return await self.request("GET", "/v1/subuser/aggregate-balance", auth=True)
 
     async def create_order(self, symbol, price, quantity, order_type):
         """ 创建订单
@@ -120,7 +120,7 @@ class HuobiRestAPI:
         }
         if order_type == "buy-market" or order_type == "sell-market":
             info.pop("price")
-        return await self.request("POST", "/v1/order/orders/place", body=info)
+        return await self.request("POST", "/v1/order/orders/place", body=info, auth=True)
 
     async def revoke_order(self, order_no):
         """ 撤销委托单
@@ -128,7 +128,7 @@ class HuobiRestAPI:
         @return True/False
         """
         uri = "/v1/order/orders/{order_no}/submitcancel".format(order_no=order_no)
-        return await self.request("POST", uri)
+        return await self.request("POST", uri, auth=True)
 
     async def revoke_orders(self, order_nos):
         """ 批量撤销委托单
@@ -138,7 +138,7 @@ class HuobiRestAPI:
         body = {
             "order-ids": order_nos
         }
-        return await self.request("POST", "/v1/order/orders/batchcancel", body=body)
+        return await self.request("POST", "/v1/order/orders/batchcancel", body=body, auth=True)
 
     async def get_open_orders(self, symbol):
         """ 获取当前还未完全成交的订单信息
@@ -151,16 +151,16 @@ class HuobiRestAPI:
             "symbol": symbol,
             "size": 500
         }
-        return await self.request("GET", "/v1/order/openOrders", params=params)
+        return await self.request("GET", "/v1/order/openOrders", params=params, auth=True)
 
     async def get_order_status(self, order_no):
         """ 获取订单的状态
         @param order_no 订单id
         """
         uri = "/v1/order/orders/{order_no}".format(order_no=order_no)
-        return await self.request("GET", uri)
+        return await self.request("GET", uri, auth=True)
 
-    async def request(self, method, uri, params=None, body=None):
+    async def request(self, method, uri, params=None, body=None, auth=False):
         """ 发起请求
         @param method 请求方法 GET POST
         @param uri 请求uri
@@ -170,7 +170,7 @@ class HuobiRestAPI:
         url = urljoin(self._host, uri)
         params = params if params else {}
 
-        if self._access_key and self._secret_key:
+        if auth:
             timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
             params.update({"AccessKeyId": self._access_key,
                            "SignatureMethod": "HmacSHA256",
@@ -617,20 +617,22 @@ class HuobiTrader(Websocket, ExchangeGateway):
                     SingleTask.run(self.cb.on_order_update_callback, order)
 
         #订阅账号资产信息
-        params = {
-            "op": "sub",
-            "topic": "accounts",
-            "model": "0"
-        }
-        await self.send_json(params)
-
-        #订阅订单更新频道
-        for ch in self._order_channel:
+        if self.cb.on_asset_update_callback:
             params = {
                 "op": "sub",
-                "topic": ch
+                "topic": "accounts",
+                "model": "0"
             }
             await self.send_json(params)
+
+        #订阅订单更新频道
+        if self.cb.on_order_update_callback or self.cb.on_fill_update_callback:
+            for ch in self._order_channel:
+                params = {
+                    "op": "sub",
+                    "topic": ch
+                }
+                await self.send_json(params)
 
         #计数初始化0
         self._subscribe_response_count = 0
@@ -1061,19 +1063,19 @@ class HuobiMarket(Websocket):
             d = data["tick"]
             asks = d["asks"][:10] #[[price, quantity],....]
             bids = d["bids"][:10]
-            p = {
+            info = {
                 "platform": self._platform,
                 "symbol": symbol,
                 "asks": asks,
                 "bids": bids,
                 "timestamp": d["ts"]
             }
-            ob = Orderbook(**p)
+            ob = Orderbook(**info)
             SingleTask.run(self.cb.on_orderbook_update_callback, ob)
         elif channel.find("trade") != -1:
             tick = data["tick"]
             for t in tick["data"]:
-                p = {
+                info = {
                     "platform": self._platform,
                     "symbol": symbol,
                     "action": ORDER_ACTION_BUY if t["direction"] == "buy" else ORDER_ACTION_SELL,
@@ -1081,7 +1083,7 @@ class HuobiMarket(Websocket):
                     "quantity": t["amount"],
                     "timestamp": t["ts"]
                 }
-                trade = Trade(**p)
+                trade = Trade(**info)
                 SingleTask.run(self.cb.on_trade_update_callback, trade)
 
     def _symbol_to_channel(self, symbol, channel_type):

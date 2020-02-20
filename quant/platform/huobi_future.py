@@ -35,7 +35,7 @@ from quant.utils.http_client import AsyncHttpRequests
 from quant.utils.decorator import async_method_locker
 from quant.order import ORDER_ACTION_BUY, ORDER_ACTION_SELL
 from quant.order import ORDER_TYPE_LIMIT, ORDER_TYPE_MARKET
-from quant.order import ORDER_STATUS_SUBMITTED, ORDER_STATUS_PARTIAL_FILLED, ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED, ORDER_STATUS_FAILED
+from quant.order import ORDER_STATUS_SUBMITTED, ORDER_STATUS_PARTIAL_FILLED, ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED, ORDER_STATUS_FAILED, ORDER_STATUS_NONE
 from quant.order import TRADE_TYPE_BUY_OPEN, TRADE_TYPE_SELL_OPEN, TRADE_TYPE_BUY_CLOSE, TRADE_TYPE_SELL_CLOSE
 from quant.order import LIQUIDITY_TYPE_MAKER, LIQUIDITY_TYPE_TAKER
 
@@ -137,7 +137,7 @@ class HuobiFutureRestAPI:
             error: Error information, otherwise it's None.
         """
         uri = "/api/v1/contract_account_info"
-        success, error = await self.request("POST", uri)
+        success, error = await self.request("POST", uri, auth=True)
         return success, error
 
     async def get_position(self, symbol=None):
@@ -154,7 +154,7 @@ class HuobiFutureRestAPI:
         body = {}
         if symbol:
             body["symbol"] = symbol
-        success, error = await self.request("POST", uri, body=body)
+        success, error = await self.request("POST", uri, body=body, auth=True)
         return success, error
 
     async def create_order(self, symbol, contract_type, contract_code, price, quantity, direction, offset, lever_rate, order_price_type):
@@ -187,30 +187,11 @@ class HuobiFutureRestAPI:
             "lever_rate": lever_rate,
             "order_price_type": order_price_type
         }
-        success, error = await self.request("POST", uri, body=body)
-        return success, error
-
-    async def revoke_order(self, symbol, order_id):
-        """ Revoke an order.
-
-        Args:
-            symbol: Currency name, e.g. BTC.
-            order_id: Order ID.
-
-        Returns:
-            success: Success results, otherwise it's None.
-            error: Error information, otherwise it's None.
-        """
-        uri = "/api/v1/contract_cancel"
-        body = {
-            "symbol": symbol,
-            "order_id": order_id
-        }
-        success, error = await self.request("POST", uri, body=body)
+        success, error = await self.request("POST", uri, body=body, auth=True)
         return success, error
 
     async def revoke_orders(self, symbol, order_ids):
-        """ Revoke multiple orders.
+        """ Revoke one or multiple orders.
 
         Args:
             symbol: Currency name, e.g. BTC.
@@ -225,10 +206,10 @@ class HuobiFutureRestAPI:
             "symbol": symbol,
             "order_id": ",".join(order_ids)
         }
-        success, error = await self.request("POST", uri, body=body)
+        success, error = await self.request("POST", uri, body=body, auth=True)
         return success, error
 
-    async def revoke_order_all(self, symbol, contract_code=None, contract_type=None):
+    async def revoke_order_all(self, symbol, contract_type=None, contract_code=None):
         """ Revoke all orders.
 
         Args:
@@ -244,14 +225,13 @@ class HuobiFutureRestAPI:
                 2. If not input `contract_code`, matching by `symbol + contract_type`.
         """
         uri = "/api/v1/contract_cancelall"
-        body = {
-            "symbol": symbol,
-        }
+        body = {}
         if contract_code:
             body["contract_code"] = contract_code
         if contract_type:
+            body["symbol"] = symbol
             body["contract_type"] = contract_type
-        success, error = await self.request("POST", uri, body=body)
+        success, error = await self.request("POST", uri, body=body, auth=True)
         return success, error
 
     async def get_order_info(self, symbol, order_ids):
@@ -270,7 +250,7 @@ class HuobiFutureRestAPI:
             "symbol": symbol,
             "order_id": ",".join(order_ids)
         }
-        success, error = await self.request("POST", uri, body=body)
+        success, error = await self.request("POST", uri, body=body, auth=True)
         return success, error
 
     async def get_open_orders(self, symbol, index=1, size=50):
@@ -291,10 +271,10 @@ class HuobiFutureRestAPI:
             "page_index": index,
             "page_size": size
         }
-        success, error = await self.request("POST", uri, body=body)
+        success, error = await self.request("POST", uri, body=body, auth=True)
         return success, error
 
-    async def request(self, method, uri, params=None, body=None, headers=None):
+    async def request(self, method, uri, params=None, body=None, headers=None, auth=False):
         """ Do HTTP request.
 
         Args:
@@ -303,6 +283,7 @@ class HuobiFutureRestAPI:
             params: HTTP query params.
             body: HTTP request body.
             headers: HTTP request headers.
+            auth: If this request requires authentication.
 
         Returns:
             success: Success results, otherwise it's None.
@@ -310,7 +291,7 @@ class HuobiFutureRestAPI:
         """
         url = urljoin(self._host, uri)
 
-        if self._access_key and self._secret_key:
+        if auth:
             timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
             params = params if params else {}
             params.update({"AccessKeyId": self._access_key,
@@ -385,32 +366,24 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         self._wss = "wss://api.btcgateway.pro"
         
         url = self._wss + "/notification"
-        super(HuobiFutureTrader, self).__init__(url, check_conn_interval=5, send_hb_interval=0)
+        super(HuobiFutureTrader, self).__init__(url, send_hb_interval=0)
         #self.heartbeat_msg = "ping"
 
         # Initializing our REST API client.
         self._rest_api = HuobiFutureRestAPI(self._host, self._access_key, self._secret_key)
         
-        self.raw_kwargs = {
-            "platform": kwargs["platform"],
-            "account": kwargs.get("account"),
-            "symbols": kwargs["symbols"],
-            "strategy": kwargs["strategy"]
-        }
+        self._syminfo:DefaultDict[str: Dict[str, Any]] = defaultdict(dict)
 
-        self._contract_info:DefaultDict[str: Dict[str, Any]] = defaultdict(dict)
-    
-        self._orders:DefaultDict[str: Dict[str, Order]] = defaultdict(dict)
-    
-        #e.g. {"BTC": {"free": "1.1", "locked": "2.2", "total": "3.3"}, ... }
-        self._assets: DefaultDict[str: Dict[str, str]] = defaultdict(lambda: {k: "0" for k in {'free', 'locked', 'total'}})
-    
-        
-        
+        #e.g. {"BTC": {"free": 1.1, "locked": 2.2, "total": 3.3}, ... }
+        self._assets: DefaultDict[str: Dict[str, float]] = defaultdict(lambda: {k: 0.0 for k in {'free', 'locked', 'total'}})
+
         self._fills: DefaultDict[str, DefaultDict[str, DefaultDict[str, Fill]]] = defaultdict(lambda:defaultdict(lambda:defaultdict(None))) #三级字典
-        
 
-        self.initialize()
+        if self._account != None:
+            self.initialize()
+
+        #市场行情数据
+        HuobiFutureMarket(**kwargs)
 
 
     async def create_order(self, symbol, action, price, quantity, order_type=ORDER_TYPE_LIMIT, *args, **kwargs):
@@ -429,35 +402,29 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
             order_no: Order ID if created successfully, otherwise it's None.
             error: Error information, otherwise it's None.
         """
-        
-        success, error = self._init_contract_info()
-        if error:
-            return None, error
-        
-        ci = self._contract_info[symbol]
-        if not ci:
-            return None, "symbol not found"
-
         if int(quantity) > 0:
-            if action == ORDER_ACTION_BUY:
+            if action == ORDER_ACTION_BUY: #买入开多
                 direction = "buy"
                 offset = "open"
-            elif action == ORDER_ACTION_SELL:
+            elif action == ORDER_ACTION_SELL: #卖出平多
                 direction = "sell"
                 offset = "close"
+            else:
+                return None, "action error"
+        elif int(quantity) < 0:
+            if action == ORDER_ACTION_BUY: #买入平空
+                direction = "buy"
+                offset = "close"
+            elif action == ORDER_ACTION_SELL: #卖出开空
+                direction = "sell"
+                offset = "open"
             else:
                 return None, "action error"
         else:
-            if action == ORDER_ACTION_BUY:
-                direction = "buy"
-                offset = "close"
-            elif action == ORDER_ACTION_SELL:
-                direction = "sell"
-                offset = "open"
-            else:
-                return None, "action error"
+            return None, "quantity error"
 
-        lever_rate = kwargs.get("lever_rate", 20)
+        lever_rate = kwargs.get("lever_rate", 10)
+        
         if order_type == ORDER_TYPE_LIMIT:
             order_price_type = "limit"
         elif order_type == ORDER_TYPE_MARKET:
@@ -466,16 +433,18 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
             return None, "order type error"
 
         quantity = abs(int(quantity))
-        result, error = await self._rest_api.create_order(ci["symbol"], ci["contract_type"], ci["contract_code"],
-                                                          price, quantity, direction, offset, lever_rate, order_price_type)
+        result, error = await self._rest_api.create_order(None, None, symbol, price, quantity, direction, offset, lever_rate, order_price_type)
         if error:
             return None, error
+        if result["status"] != "ok":
+            return None, result
         return str(result["data"]["order_id"]), None
 
     async def revoke_order(self, symbol, *order_nos):
         """ Revoke (an) order(s).
 
         Args:
+            symbol: Contract code
             order_nos: Order id list, you can set this param to 0 or multiple items. If you set 0 param, you can cancel
                 all orders for this symbol(initialized in Trade object). If you set 1 param, you can cancel an order.
                 If you set multiple param, you can cancel multiple orders. Do not set param length more than 100.
@@ -483,59 +452,120 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         Returns:
             Success or error, see bellow.
         """
-        # If len(order_nos) == 0, you will cancel all orders for this symbol(initialized in Trade object).
-        if len(order_nos) == 0:
-            success, error = await self._rest_api.revoke_order_all(self._symbol, self._contract_code, self._contract_type)
-            if error:
-                return False, error
-            if success.get("errors"):
-                return False, success["errors"]
-            return True, None
+        """
+        {
+        "status": "ok",
+        "data": {
+          "errors":[
+            {
+              "order_id":"633766664829804544",
+              "err_code": 200417,
+              "err_msg": "invalid symbol"
+            },
+            {
+              "order_id":"633766664829804544",
+              "err_code": 200415,
+              "err_msg": "invalid symbol"
+             }
+          ],
+          "successes":"161256,1344567"
+         },
+        "ts": 1490759594752
+        }
+        """
+        if len(order_nos) == 0: #删除指定符号下所有订单
+            s, e = await self._rest_api.revoke_order_all(None, None, symbol)
+        else: #删除指定符号下单个或者多个订单
+            info = self._syminfo[symbol]
+            if not info:
+                return None, "Symbol not exist"
+            s, e = await self._rest_api.revoke_orders(info["symbol"], order_nos)
+        if len(order_nos) == 1: #删除一个订单情况下的返回格式
+            if e:
+                return order_nos[0], e
+            if s["status"] != "ok":
+                return order_nos[0], s
+            if s["errors"]:
+                return order_nos[0], s["errors"][0]
+            return order_nos[0], None
+        elif len(order_nos) == 0 or len(order_nos) > 1: #删除多个或者全部订单情况下的返回格式
+            if e:
+                return [], e
+            if s["status"] != "ok":
+                return [], s
+            result = []
+            if s["successes"]:
+                success = s["successes"]
+                for x in success.split(","):
+                    result.append((x, None))
+            for x in s["errors"]:
+                result.append((x["order_id"], x["err_msg"]))
+            return result, None
 
-        # If len(order_nos) == 1, you will cancel an order.
-        if len(order_nos) == 1:
-            success, error = await self._rest_api.revoke_order(self._symbol, order_nos[0])
-            if error:
-                return order_nos[0], error
-            if success.get("errors"):
-                return False, success["errors"]
-            else:
-                return order_nos[0], None
-
-        # If len(order_nos) > 1, you will cancel multiple orders.
-        if len(order_nos) > 1:
-            success, error = await self._rest_api.revoke_orders(self._symbol, order_nos)
-            if error:
-                return order_nos[0], error
-            if success.get("errors"):
-                return False, success["errors"]
-            return success, error
-
-
-   
-   
     async def get_orders(self, symbol):
         """ 获取当前挂单列表
 
         Args:
-            symbol: Trade target
+            symbol: Contract code
 
         Returns:
             orders: Order list if successfully, otherwise it's None.
             error: Error information, otherwise it's None.
         """
-        success, error = await self._rest_api.get_open_orders(symbol)
+        """
+        {
+        "status": "ok",
+        "data":{
+          "orders":[
+            {
+               "symbol": "BTC",
+               "contract_type": "this_week",
+               "contract_code": "BTC180914",
+               "volume": 111,
+               "price": 1111,
+               "order_price_type": "limit",
+               "order_type": 1,
+               "direction": "buy",
+               "offset": "open",
+               "lever_rate": 10,
+               "order_id": 633766664829804544,
+               "order_id_str": "633766664829804544",
+               "client_order_id": 10683,
+               "order_source": "web",
+               "created_at": 1408076414000,
+               "trade_volume": 1,
+               "trade_turnover": 1200,
+               "fee": 0,
+               "trade_avg_price": 10,
+               "margin_frozen": 10,
+               "profit": 0,
+               "status": 1,
+               "fee_asset": "BTC"
+              }
+             ],
+          "total_page":15,
+          "current_page":3,
+          "total_size":3
+         },
+        "ts": 1490759594752
+        }
+        """
+        info = self._syminfo[symbol]
+        if not info:
+            return None, "Symbol not exist"
+        s = info["symbol"]
+        success, error = await self._rest_api.get_open_orders(s)
         if error:
             return None, error
-        else:
-            order_nos = []
-            for order_info in success["data"]["orders"]:
-                if order_info["contract_code"] != self._contract_code:
-                    continue
-                order_nos.append(str(order_info["order_id"]))
-            return order_nos, None
-        
-   
+        if success["status"] != "ok":
+            return None, success
+        orders = []
+        for order_info in success["data"]["orders"]:
+            if order_info["contract_code"] == symbol:
+                order = self._convert_order_format(order_info)
+                orders.append(order)
+        return orders, None
+
     async def get_assets(self):
         """ 获取交易账户资产信息
 
@@ -546,33 +576,88 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
             assets: Asset if successfully, otherwise it's None.
             error: Error information, otherwise it's None.
         """
-        
+        success, error = await self._rest_api.get_asset_info()
+        if error:
+            return None, error
+        if success["status"] != "ok":
+            return None, success
+        ast = self._convert_asset_format(success)
+        return ast
 
     async def get_position(self, symbol):
         """ 获取当前持仓
 
         Args:
-            symbol: Trade target
+            symbol: Contract code
 
         Returns:
             position: Position if successfully, otherwise it's None.
             error: Error information, otherwise it's None.
         """
-        raise NotImplementedError
-        
+        """
+        {
+        "status": "ok",
+        "data": [
+          {
+            "symbol": "BTC",
+            "contract_code": "BTC180914",
+            "contract_type": "this_week",
+            "volume": 1,
+            "available": 0,
+            "frozen": 0.3,
+            "cost_open": 422.78,
+            "cost_hold": 422.78,
+            "profit_unreal": 0.00007096,
+            "profit_rate": 0.07,
+            "profit": 0.97,
+            "position_margin": 3.4,
+            "lever_rate": 10,
+            "direction":"buy",
+            "last_price":7900.17
+           }
+          ],
+          "ts": 158797866555
+        }
+        """
+        info = self._syminfo[symbol]
+        if not info:
+            return None, "Symbol not exist"
+        s = info["symbol"]
+        success, error = await self._rest_api.get_position(s)
+        if error:
+            return None, error
+        if success["status"] != "ok":
+            return None, success
+        utime = success["ts"]
+        for position_info in success["data"]:
+            if position_info["contract_code"] == symbol:
+                pos = self._convert_position_format(position_info, utime)
+                return pos, None
+        return None, "Position not exist"
+
     async def get_symbol_info(self, symbol):
         """ 获取指定符号相关信息
 
         Args:
-            symbol: Trade target
+            symbol: Contract code
 
         Returns:
             symbol_info: SymbolInfo if successfully, otherwise it's None.
             error: Error information, otherwise it's None.
-        """        
-        raise NotImplementedError
+        """
+        info = self._syminfo[symbol]
+        if not info:
+            return None, "Symbol not exist"
+        price_tick = info["price_tick"]
+        size_tick = 1
+        size_limit = 1
+        value_tick = None
+        value_limit = None
+        base_currency = None
+        quote_currency = None
+        syminfo = SymbolInfo(self._platform, symbol, price_tick, size_tick, size_limit, value_tick, value_limit, base_currency, quote_currency)
+        return syminfo, None
     
-
     @property
     def rest_api(self):
         return self._rest_api
@@ -590,10 +675,9 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         data["op"] = "auth"
         data["type"] = "api"
         data["Signature"] = sign
-        await self.ws.send_json(data)
+        await self.send_json(data)
 
-    @async_method_locker("HuobiFutureTrader._init_contract_info.locker")
-    async def _init_contract_info(self):
+    async def _init_symbol_info(self):
         """
         {
             "status": "ok",
@@ -612,60 +696,40 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
             "ts":158797866555
         }
         """
-        exist = True
-        for sym in self._symbols:
-            if not self._contract_info[sym]:
-                exist = False
-        if exist:
-            return True, None
-
         success, error = await self._rest_api.get_contract_info()
         if error:
             return False, error
-        
         for info in success["data"]:
-            if info["contract_code"] in self._symbols:
-                p = {}
-                p["symbol"] = info["symbol"]
-                p["contract_code"] = info["contract_code"]
-                p["contract_type"] = info["contract_type"]
-                p["contract_size"] = info["contract_size"]
-                p["price_tick"] = info["price_tick"]
-                #如"BTC_CW"表示BTC当周合约，"BTC_NW"表示BTC次周合约，"BTC_CQ"表示BTC季度合约
-                t = p["contract_type"]
-                if t == "this_week":
-                    p["symbol_raw"] = p["symbol"] + "_CW"
-                elif t == "next_week":
-                    p["symbol_raw"] = p["symbol"] + "_NW"
-                elif t == "quarter":
-                    p["symbol_raw"] = p["symbol"] + "_CQ"
-                self._contract_info[info["contract_code"]] = p
-
-        exist = True
-        for sym in self._symbols:
-            if not self._contract_info[sym]:
-                exist = False
-        if exist:
-            return True, None
-        else:
-            return False, "symbol not found"
+            #如"BTC_CW"表示BTC当周合约，"BTC_NW"表示BTC次周合约，"BTC_CQ"表示BTC季度合约
+            t = info["contract_type"]
+            if t == "this_week":
+                info["symbol_raw"] = info["symbol"] + "_CW"
+            elif t == "next_week":
+                info["symbol_raw"] = info["symbol"] + "_NW"
+            elif t == "quarter":
+                info["symbol_raw"] = info["symbol"] + "_CQ"
+            self._syminfo[info["contract_code"]] = info #符号信息一般不变,获取一次保存好,其他地方要用直接从这个变量获取就可以了
+        #返回成功
+        return True, None
 
     async def _init_sub_channel(self):
-        prev = []
         self._order_channel = []
         self._position_channel = []
         self._asset_channel = []
-
         for sym in self._symbols:
-            s = self._contract_info[sym]["symbol"].lower()
-            if s in prev:
-                continue
-            self._order_channel.append("orders.{}".format(s))
-            self._position_channel.append("positions.{}".format(s))
-            self._asset_channel.append("accounts.{}".format(s))
-            prev.append(s)
-            
-            
+            info = self._syminfo[sym]
+            if info:
+                s = info["symbol"].lower()
+                self._order_channel.append("orders.{}".format(s))
+                self._position_channel.append("positions.{}".format(s))
+                self._asset_channel.append("accounts.{}".format(s))
+        #去重
+        self._order_channel = list(set(self._order_channel))
+        self._position_channel = list(set(self._position_channel))
+        self._asset_channel = list(set(self._asset_channel))
+        #
+        self._subscribe_response_count = 0
+        self._subscribe_channel_total = len(self._order_channel) + len(self._position_channel) + len(self._asset_channel)
 
     async def auth_callback(self, data):
         if data["err-code"] != 0:
@@ -674,50 +738,85 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
             SingleTask.run(self.cb.on_state_update_callback, state)
             return
 
-        success, error = await self._init_contract_info()
+        success, error = await self._init_symbol_info()
         if error:
-            state = State("_init_contract_info error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+            state = State("_init_symbol_info error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
             SingleTask.run(self.cb.on_state_update_callback, state)
             return
-        
+
+        #获取当前未完成订单
+        if self.cb.on_order_update_callback:
+            for sym in self._symbols:
+                success, error = await self.get_orders(sym)
+                if error:
+                    state = State("get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    SingleTask.run(self.cb.on_state_update_callback, state)
+                    return
+                for order in success:
+                    SingleTask.run(self.cb.on_order_update_callback, order)
+
+        #获取当前持仓
+        if self.cb.on_position_update_callback:
+            for sym in self._symbols:
+                success, error = await self.get_position(sym)
+                if error:
+                    state = State("get_position error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    SingleTask.run(self.cb.on_state_update_callback, state)
+                    return
+                SingleTask.run(self.cb.on_position_update_callback, success)
+
+        #获取当前账户余额
+        if self.cb.on_asset_update_callback:
+            success, error = await self.get_assets()
+            if error:
+                state = State("get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                SingleTask.run(self.cb.on_state_update_callback, state)
+                return
+            SingleTask.run(self.cb.on_asset_update_callback, success)
+
         await self._init_sub_channel()
 
         # subscribe order
-        for ch in self._order_channel:
-            params = {
-                "op": "sub",
-                "cid": tools.get_uuid1(),
-                "topic": ch
-            }
-            await self.ws.send_json(params)
+        if self.cb.on_order_update_callback or self.cb.on_fill_update_callback:
+            for ch in self._order_channel:
+                params = {
+                    "op": "sub",
+                    "cid": tools.get_uuid1(),
+                    "topic": ch
+                }
+                await self.send_json(params)
 
         # subscribe position
-        for ch in self._position_channel:
-            params = {
-                "op": "sub",
-                "cid": tools.get_uuid1(),
-                "topic": ch
-            }
-            await self.ws.send_json(params)
+        if self.cb.on_position_update_callback:
+            for ch in self._position_channel:
+                params = {
+                    "op": "sub",
+                    "cid": tools.get_uuid1(),
+                    "topic": ch
+                }
+                await self.send_json(params)
 
         # subscribe asset
-        for ch in self._asset_channel:
-            params = {
-                "op": "sub",
-                "cid": tools.get_uuid1(),
-                "topic": ch
-            }
-            await self.ws.send_json(params)
-            
+        if self.cb.on_asset_update_callback:
+            for ch in self._asset_channel:
+                params = {
+                    "op": "sub",
+                    "cid": tools.get_uuid1(),
+                    "topic": ch
+                }
+                await self.send_json(params)
 
     async def sub_callback(self, data):
         if data["err-code"] != 0:
             state = State("subscribe {} failed!".format(data["topic"]), State.STATE_CODE_GENERAL_ERROR)
             logger.error(state, caller=self)
             SingleTask.run(self.cb.on_state_update_callback, state)
-            return
+        else:
+            self._subscribe_response_count = self._subscribe_response_count + 1 #每来一次订阅响应计数就加一
+            if self._subscribe_response_count == self._subscribe_channel_total: #所有的订阅都成功了,通知上层接口都准备好了
+                state = State("Environment ready", State.STATE_CODE_READY)
+                SingleTask.run(self.cb.on_state_update_callback, state)
 
-    @async_method_locker("HuobiFutureTrader.process_binary.locker")
     async def process_binary(self, raw):
         """ 处理websocket上接收到的消息
         @param raw 原始的压缩数据
@@ -728,7 +827,7 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         op = data.get("op")
         if op == "ping":
             hb_msg = {"op": "pong", "ts": data.get("ts")}
-            await self.ws.send_json(hb_msg)
+            await self.send_json(hb_msg)
 
         elif op == "auth":
             await self.auth_callback(data)
@@ -743,9 +842,56 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
                 self._update_position(data)
             elif data["topic"] == "accounts" or data["topic"] in self._asset_channel:
                 self._update_asset(data)
-                
 
-
+    def _convert_order_format(self, order_info):
+        symbol = order_info["contract_code"]
+        if symbol not in self._symbols:
+            return
+        order_no = str(order_info["order_id"])
+        if order_info["direction"] == "buy":
+            if order_info["offset"] == "open":
+                trade_type = TRADE_TYPE_BUY_OPEN #买入开多
+            else:
+                trade_type = TRADE_TYPE_BUY_CLOSE #买入平空
+        else:
+            if order_info["offset"] == "close":
+                trade_type = TRADE_TYPE_SELL_CLOSE #卖出平多
+            else:
+                trade_type = TRADE_TYPE_SELL_OPEN #卖出开空
+        quantity = order_info["volume"]
+        state = order_info["status"]
+        #(1准备提交 2准备提交 3已提交 4部分成交 5部分成交已撤单 6全部成交 7已撤单 11撤单中)
+        if state in [1, 2, 3]:
+            status = ORDER_STATUS_SUBMITTED
+        elif state == 4:
+            status = ORDER_STATUS_PARTIAL_FILLED
+            remain = int(quantity) - int(order_info["trade_volume"])
+        elif state == 6:
+            status = ORDER_STATUS_FILLED
+            remain = 0
+        elif state in [5, 7]:
+            status = ORDER_STATUS_CANCELED
+            remain = int(quantity) - int(order_info["trade_volume"])
+        else:
+            status = ORDER_STATUS_NONE
+        #订单报价类型 "limit":限价 "opponent":对手价 "post_only":只做maker单,post only下单只受用户持仓数量限制
+        info = {
+            "platform": self._platform,
+            "account": self._account,
+            "strategy": self._strategy,
+            "order_no": order_no,
+            "action": ORDER_ACTION_BUY if order_info["direction"] == "buy" else ORDER_ACTION_SELL,
+            "symbol": symbol,
+            "price": order_info["price"],
+            "quantity": quantity,
+            "status": status,
+            "order_type": ORDER_TYPE_LIMIT if order_info["order_price_type"] in ["limit","post_only"] else ORDER_TYPE_MARKET,
+            "trade_type": trade_type,
+            "avg_price": order_info["trade_avg_price"],
+            "ctime": order_info["created_at"],
+            "utime": order_info["ts"]
+        }
+        return Order(**info)
 
     def _update_order(self, order_info):
         """ Order update.
@@ -793,83 +939,27 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         }
         """
         symbol = order_info["contract_code"]
-        if symbol not in self._contract_info:
+        if symbol not in self._symbols:
             return
-        order_no = str(order_info["order_id"])
-        
-        order = self._orders[symbol].get(order_no)
-        if not order:
-            if order_info["direction"] == "buy":
-                if order_info["offset"] == "open":
-                    trade_type = TRADE_TYPE_BUY_OPEN
-                else:
-                    trade_type = TRADE_TYPE_BUY_CLOSE
-            else:
-                if order_info["offset"] == "close":
-                    trade_type = TRADE_TYPE_SELL_CLOSE
-                else:
-                    trade_type = TRADE_TYPE_SELL_OPEN
-
-            #订单报价类型 "limit":限价 "opponent":对手价 "post_only":只做maker单,post only下单只受用户持仓数量限制
-            info = {
-                "platform": self._platform,
-                "account": self._account,
-                "strategy": self._strategy,
-                "order_no": order_no,
-                "action": ORDER_ACTION_BUY if order_info["direction"] == "buy" else ORDER_ACTION_SELL,
-                "symbol": symbol,
-                "price": order_info["price"],
-                "quantity": order_info["volume"],
-                "order_type": ORDER_TYPE_LIMIT if order_info["order_price_type"] in ["limit","post_only"] else ORDER_TYPE_MARKET,
-                "trade_type": trade_type,
-                "ctime": order_info["created_at"]
-            }
-            order = Order(**info)
-            self._orders[symbol][order_no] = order
-
-        status = order_info["status"]
-        #(1准备提交 2准备提交 3已提交 4部分成交 5部分成交已撤单 6全部成交 7已撤单 11撤单中)
-        if status in [1, 2, 3]:
-            order.status = ORDER_STATUS_SUBMITTED
-        elif status == 4:
-            order.status = ORDER_STATUS_PARTIAL_FILLED
-            order.remain = int(order.quantity) - int(order_info["trade_volume"])
-        elif status == 6:
-            order.status = ORDER_STATUS_FILLED
-            order.remain = 0
-        elif status in [5, 7]:
-            order.status = ORDER_STATUS_CANCELED
-            order.remain = int(order.quantity) - int(order_info["trade_volume"])
-        else:
-            return
-
-        order.avg_price = order_info["trade_avg_price"]
-        order.utime = order_info["ts"]
-
-        SingleTask.run(self.cb.on_order_update_callback, order)
-        
+        order = self._convert_order_format(order_info)
+        if self.cb.on_order_update_callback:
+            SingleTask.run(self.cb.on_order_update_callback, order)
         self._update_fill(order_info)
-
-        # Delete order that already completed.
+        # Delete fills of order that already completed.
         if order.status in [ORDER_STATUS_FAILED, ORDER_STATUS_CANCELED, ORDER_STATUS_FILLED]:
-            self._orders[symbol].pop(order_no)
-            self._fills[symbol].pop(order_no)
-        
-
+            self._fills[symbol].pop(order.order_no)
 
     def _update_fill(self, order_info):
         symbol = order_info["contract_code"]
-        if symbol not in self._contract_info:
-            return
         order_no = str(order_info["order_id"])
         for t in order_info["trade"]:
             fill_no = t["id"]
-            if self._fills[symbol][order_no][fill_no] == None:
-                price = float(t["trade_price"]) #成交价格
-                size = float(t["trade_volume"]) #成交数量
+            if not self._fills[symbol][order_no][fill_no]: #保证不会重复通知上层
+                price = t["trade_price"] #成交价格
+                size = t["trade_volume"] #成交数量
                 side = ORDER_ACTION_BUY if order_info["direction"] == "buy" else ORDER_ACTION_SELL   
                 liquidity = LIQUIDITY_TYPE_TAKER if order_info["role"]=="taker" else LIQUIDITY_TYPE_MAKER
-                fee = float(t["trade_fee"])
+                fee = t["trade_fee"]
                 f = {
                     "platform": self._platform,
                     "account": self._account,
@@ -888,9 +978,19 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
                 self._fills[symbol][order_no][fill_no] = fill
                 if self.cb.on_fill_update_callback:
                     SingleTask.run(self.cb.on_fill_update_callback, fill)
-        
 
-            
+    def _convert_position_format(self, position_info, utime):
+        symbol = position_info["contract_code"]
+        pos = Position(self._platform, self._account, self._strategy, symbol)
+        if position_info["direction"] == "buy":
+            pos.long_quantity = int(position_info["volume"])
+            pos.long_avg_price = position_info["cost_hold"]
+        else:
+            pos.short_quantity = int(position_info["volume"])
+            pos.short_avg_price = position_info["cost_hold"]
+        #pos.liquid_price = None
+        pos.utime = utime
+        return pos
 
     def _update_position(self, data):
         """ Position update.
@@ -926,21 +1026,27 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         }]
         }
         """
+        utime = data["ts"]
         for position_info in data["data"]:
             symbol = position_info["contract_code"]
-            if symbol not in self._contract_info:
-                return
-            pos = Position(self._platform, self._account, self._strategy, symbol)
-            if position_info["direction"] == "buy":
-                pos.long_quantity = int(position_info["volume"])
-                pos.long_avg_price = position_info["cost_hold"]
-            else:
-                pos.short_quantity = int(position_info["volume"])
-                pos.short_avg_price = position_info["cost_hold"]
-            #pos.liquid_price = None
-            pos.utime = data["ts"]
-            SingleTask.run(self.cb.on_position_update_callback, pos)
+            if symbol in self._symbols:
+                pos = self._convert_position_format(position_info, utime)
+                SingleTask.run(self.cb.on_position_update_callback, pos)
 
+    def _convert_asset_format(self, data):
+        for d in data["data"]:
+            symbol = d["symbol"]
+            total = d["margin_balance"]
+            free = d["margin_available"]
+            locked = d["margin_position"] + d["margin_frozen"]
+            self._assets[symbol] = {
+                "total": total,
+                "free": free,
+                "locked": locked
+            }
+        timestamp = data["ts"]
+        ast = Asset(self._platform, self._account, self._assets, timestamp, True)
+        return ast
 
     def _update_asset(self, data):
         """ asset update.
@@ -974,23 +1080,172 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         }]
         }
         """
-        d = data["data"]
-        assets = {}
-        symbol = d["symbol"]
-        total = float(d["margin_balance"])
-        free = float(d["margin_available"])
-        locked = float(d["margin_position"]) + float(d["margin_frozen"])
-        assets[symbol] = {
-            "total": "%.8f" % total,
-            "free": "%.8f" % free,
-            "locked": "%.8f" % locked
+        ast = self._convert_asset_format(data)
+        SingleTask.run(self.cb.on_asset_update_callback, ast)
+
+
+class HuobiFutureMarket(Websocket):
+    """ Huobi Future Market Server.
+    """
+
+    def __init__(self, **kwargs):
+        self.cb = kwargs["cb"]
+        self._platform = kwargs["platform"]
+        self._symbols = kwargs["symbols"]
+        self._host = "https://api.btcgateway.pro"
+        self._wss = "wss://www.hbdm.com"
+        url = self._wss + "/ws"
+        super(HuobiMarket, self).__init__(url, send_hb_interval=0, **kwargs)
+        #self.heartbeat_msg = "ping"
+        # Initializing our REST API client.
+        self._rest_api = HuobiFutureRestAPI(self._host, None, None)
+        self._c_to_s = {}  # {"channel": "symbol_raw"}
+        self._s_to_cd = {}  # {"symbol_raw": "Contract code"}
+        self._orderbook_length = 20
+        self._syminfo:DefaultDict[str: Dict[str, Any]] = defaultdict(dict)
+        self.initialize()
+
+    async def _init_symbol_info(self):
+        """
+        {
+            "status": "ok",
+            "data": [
+              {
+                "symbol": "BTC",
+                "contract_code": "BTC180914",
+                "contract_type": "this_week",
+                "contract_size": 100,
+                "price_tick": 0.001,
+                "delivery_date": "20180704",
+                "create_date": "20180604",
+                "contract_status": 1
+               }
+              ],
+            "ts":158797866555
         }
-        if assets == self._assets:
-            update = False
+        """
+        success, error = await self._rest_api.get_contract_info()
+        if error:
+            return False, error
+        for info in success["data"]:
+            #如"BTC_CW"表示BTC当周合约，"BTC_NW"表示BTC次周合约，"BTC_CQ"表示BTC季度合约
+            t = info["contract_type"]
+            if t == "this_week":
+                info["symbol_raw"] = info["symbol"] + "_CW"
+            elif t == "next_week":
+                info["symbol_raw"] = info["symbol"] + "_NW"
+            elif t == "quarter":
+                info["symbol_raw"] = info["symbol"] + "_CQ"
+            self._syminfo[info["contract_code"]] = info #符号信息一般不变,获取一次保存好,其他地方要用直接从这个变量获取就可以了
+        #返回成功
+        return True, None
+
+    async def connected_callback(self):
+        """ After create connection to Websocket server successfully, we will subscribe orderbook event.
+        """
+        success, error = await self._init_symbol_info()
+        if error:
+            state = State("_init_symbol_info error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+            SingleTask.run(self.cb.on_state_update_callback, state)
+            return
+        for symbol in self._symbols: #这里的symbol实际是Contract code
+            info = self._syminfo[symbol]
+            if not info: continue
+            symbol_raw = info["symbol_raw"] #类似BTC_CQ这种表示方法
+            self._s_to_cd[symbol_raw] = symbol
+            #====================================
+            if self.cb.on_kline_update_callback:
+                channel = self._symbol_to_channel(symbol_raw, "kline")
+                if channel:
+                    kline = {"sub": channel}
+                    await self.send(kline)
+            #====================================
+            if self.cb.on_orderbook_update_callback:
+                channel = self._symbol_to_channel(symbol_raw, "depth")
+                if channel:
+                    data = {"sub": channel}
+                    await self.send(data)
+            #====================================
+            if self.cb.on_trade_update_callback:
+                channel = self._symbol_to_channel(symbol_raw, "trade")
+                if channel:
+                    data = {"sub": channel}
+                    await self.send(data)
+
+    async def process_binary(self, msg):
+        """ Process binary message that received from Websocket connection.
+
+        Args:
+            msg: Binary message.
+        """
+        data = json.loads(gzip.decompress(msg).decode())
+        # logger.debug("data:", json.dumps(data), caller=self)
+        channel = data.get("ch")
+        if not channel:
+            if data.get("ping"):
+                hb_msg = {"pong": data.get("ping")}
+                await self.send(hb_msg)
+            return
+
+        symbol_raw = self._c_to_s[channel]
+        symbol = self._s_to_cd[symbol_raw]
+
+        if channel.find("kline") != -1:
+            d = data.get("tick")
+            info = {
+                "platform": self._platform,
+                "symbol": symbol,
+                "open": d["open"],
+                "high": d["high"],
+                "low": d["low"],
+                "close": d["close"],
+                "volume": d["amount"],
+                "timestamp": data.get("ts"),
+                "kline_type": MARKET_TYPE_KLINE
+            }
+            kline = Kline(**info)
+            SingleTask.run(self.cb.on_kline_update_callback, kline)
+        elif channel.find("depth") != -1:
+            tick = data.get("tick")
+            asks = tick.get("asks")[:self._orderbook_length]
+            bids = tick.get("bids")[:self._orderbook_length]
+            timestamp = tick.get("ts")
+            info = {
+                "platform": self._platform,
+                "symbol": symbol,
+                "asks": asks,
+                "bids": bids,
+                "timestamp": timestamp
+            }
+            ob = Orderbook(**info)
+            SingleTask.run(self.cb.on_orderbook_update_callback, ob)
+        elif channel.find("trade") != -1:
+            tick = data.get("tick")
+            direction = tick["data"][0].get("direction")
+            price = tick["data"][0].get("price")
+            quantity = tick["data"][0].get("amount")
+            info = {
+                "platform": self._platform,
+                "symbol": symbol,
+                "action": ORDER_ACTION_BUY if direction == "buy" else ORDER_ACTION_SELL,
+                "price": price,
+                "quantity": quantity,
+                "timestamp": tick.get("ts")
+            }
+            trade = Trade(**info)
+            SingleTask.run(self.cb.on_trade_update_callback, trade)
         else:
-            update = True
-        self._assets = assets
-        timestamp = tools.get_cur_timestamp_ms()        
-        ast = Asset(self._platform, self._account, self._assets, timestamp, update)
-        if self.cb.on_asset_update_callback:
-            SingleTask.run(self.cb.on_asset_update_callback, ast)
+            logger.error("event error! msg:", msg, caller=self)
+
+    def _symbol_to_channel(self, symbol_raw, channel_type):
+        if channel_type == "kline":
+            channel = "market.{s}.kline.1min".format(s=symbol_raw)
+        elif channel_type == "depth":
+            channel = "market.{s}.depth.step6".format(s=symbol_raw)
+        elif channel_type == "trade":
+            channel = "market.{s}.trade.detail".format(s=symbol_raw)
+        else:
+            logger.error("channel type error! channel type:", channel_type, calle=self)
+            return None
+        self._c_to_s[channel] = symbol_raw
+        return channel

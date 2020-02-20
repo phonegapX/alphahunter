@@ -33,8 +33,7 @@ class Position:
         self.liquid_price = 0  # 预估爆仓价格
         self.utime = None  # 更新时间戳
 
-    def update(self, short_quantity=0, short_avg_price=0, long_quantity=0, long_avg_price=0, liquid_price=0,
-               utime=None):
+    def update(self, short_quantity=0, short_avg_price=0, long_quantity=0, long_avg_price=0, liquid_price=0, utime=None):
         self.short_quantity = short_quantity
         self.short_avg_price = short_avg_price
         self.long_quantity = long_quantity
