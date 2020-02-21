@@ -40,33 +40,33 @@ def gateway_class(platform):
     elif platform == const.OKEX:
         from quant.platform.okex import OKExTrader as T
         return T
-    elif platform == const.OKEX_MARGIN:
-        from quant.platform.okex_margin import OKExMarginTrader as T
-        return T
-    elif platform == const.OKEX_FUTURE:
-        from quant.platform.okex_future import OKExFutureTrader as T
-        return T
-    elif platform == const.OKEX_SWAP:
-        from quant.platform.okex_swap import OKExSwapTrader as T
-        return T
-    elif platform == const.BITMEX:
-        from quant.platform.bitmex import BitmexTrader as T
-        return T
-    elif platform == const.BINANCE:
-        from quant.platform.binance import BinanceTrader as T
-        return T
-    elif platform == const.BINANCE_FUTURE:
-        from quant.platform.binance_future import BinanceFutureTrader as T
-        return T
+    #elif platform == const.OKEX_MARGIN:
+    #    from quant.platform.okex_margin import OKExMarginTrader as T
+    #    return T
+    #elif platform == const.OKEX_FUTURE:
+    #    from quant.platform.okex_future import OKExFutureTrader as T
+    #    return T
+    #elif platform == const.OKEX_SWAP:
+    #    from quant.platform.okex_swap import OKExSwapTrader as T
+    #    return T
+    #elif platform == const.BITMEX:
+    #    from quant.platform.bitmex import BitmexTrader as T
+    #    return T
+    #elif platform == const.BINANCE:
+    #    from quant.platform.binance import BinanceTrader as T
+    #    return T
+    #elif platform == const.BINANCE_FUTURE:
+    #    from quant.platform.binance_future import BinanceFutureTrader as T
+    #    return T
     elif platform == const.HUOBI:
         from quant.platform.huobi import HuobiTrader as T
         return T
     elif platform == const.HUOBI_FUTURE:
         from quant.platform.huobi_future import HuobiFutureTrader as T
         return T
-    elif platform == const.GATE:
-        from quant.platform.gate import GateTrader as T
-        return T
+    #elif platform == const.GATE:
+    #    from quant.platform.gate import GateTrader as T
+    #    return T
     elif platform == const.FTX:
         from quant.platform.ftx import FTXTrader as T
         return T
@@ -186,9 +186,24 @@ class Trader(ExchangeGateway):
             order_nos: Order id list, you can set this param to 0 or multiple items. If you set 0 param, you can cancel all orders for 
             this symbol. If you set 1 or multiple param, you can cancel an or multiple order.
 
-        Returns:
-            删除全部订单情况: 成功=(True, None), 失败=(False, error information)
-            删除单个或多个订单情况: (删除成功的订单id[], 删除失败的订单id及错误信息[]),比如删除三个都成功那么结果为([1xx,2xx,3xx], [])
+        备注:关于批量删除订单函数返回值格式,如果函数调用失败了那肯定是return None, error
+             如果函数调用成功,但是多个订单有成功有失败的情况,比如输入3个订单id,成功2个,失败1个,那么
+             返回值统一都类似: 
+             return [(成功订单ID, None),(成功订单ID, None),(失败订单ID, "失败原因")], None
         """
         success, error = await self._t.revoke_order(symbol, *order_nos)
+        return success, error
+    
+    async def invalid_indicate(self, symbol, indicate_type):
+        """ update (an) callback function.
+
+        Args:
+            symbol: Trade target
+            indicate_type: INDICATE_ORDER, INDICATE_ASSET, INDICATE_POSITION
+
+        Returns:
+            success: If execute successfully, return True, otherwise it's False.
+            error: If execute failed, return error information, otherwise it's None.
+        """
+        success, error = await self._t.invalid_indicate(symbol, indicate_type)
         return success, error

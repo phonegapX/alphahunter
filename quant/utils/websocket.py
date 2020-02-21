@@ -16,6 +16,7 @@ from quant.utils import logger, tools
 from quant.config import config
 from quant.heartbeat import heartbeat
 from quant.state import State
+from quant.tasks import SingleTask
 
 
 class Websocket:
@@ -37,6 +38,7 @@ class Websocket:
         self._ws = None #websocket连接对象
         self.heartbeat_msg = None #心跳消息
         self.last_timestamp = 0 #最后一次收到消息的时间(包括pingpong包).[对于不支持pingpong机制的交易所这个值必须强制为0,下一步再添加相关代码]
+        self.session = None
 
     @property
     def ws(self):
@@ -56,10 +58,11 @@ class Websocket:
     async def _connect(self):
         logger.info("url:", self._url, caller=self)
         proxy = config.proxy
-        session = aiohttp.ClientSession()
+        if not self.session:
+            self.session = aiohttp.ClientSession()
         try:
-            self._ws = await session.ws_connect(self._url, proxy=proxy)
-        except aiohttp.client_exceptions.ClientConnectorError:
+            self._ws = await self.session.ws_connect(self._url, proxy=proxy)
+        except (aiohttp.client_exceptions.ClientConnectorError, aiohttp.client_exceptions.ClientHttpProxyError) as e:
             logger.error("connect to server error! url:", self._url, caller=self)
             state = State("connect to server error! url: {}".format(self._url), State.STATE_CODE_CONNECT_FAILED)
             SingleTask.run(self.cb.on_state_update_callback, state)
@@ -74,7 +77,7 @@ class Websocket:
         """ 重新建立websocket连接
         """
         if delay > 0:
-            asyncio.sleep(delay) #等待一段时间再重连
+            await asyncio.sleep(delay) #等待一段时间再重连
         logger.warn("reconnecting websocket right now!", caller=self)
         state = State("reconnecting websocket right now! url: {}".format(self._url), State.STATE_CODE_RECONNECTING)
         SingleTask.run(self.cb.on_state_update_callback, state)
@@ -121,6 +124,7 @@ class Websocket:
                 #aiohttp.WSMsgType.PING
                 #aiohttp.WSMsgType.PONG
                 logger.warn("unhandled msg:", msg, caller=self)
+        #当代码执行到这里的时候ws已经是关闭状态,所以不需要再调用close去关闭ws了.
         #当ws连接被关闭或者出现任何错误,将重新连接
         state = State("connection lost! url: {}".format(self._url), State.STATE_CODE_DISCONNECT)
         SingleTask.run(self.cb.on_state_update_callback, state)

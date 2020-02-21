@@ -28,7 +28,7 @@ from quant.utils import tools
 from quant.utils import logger
 from quant.tasks import SingleTask
 from quant.position import Position
-from quant.const import HUOBI_FUTURE
+from quant.const import MARKET_TYPE_KLINE, INDICATE_ORDER, INDICATE_ASSET, INDICATE_POSITION
 from quant.asset import Asset
 from quant.utils.websocket import Websocket
 from quant.utils.http_client import AsyncHttpRequests
@@ -38,6 +38,7 @@ from quant.order import ORDER_TYPE_LIMIT, ORDER_TYPE_MARKET
 from quant.order import ORDER_STATUS_SUBMITTED, ORDER_STATUS_PARTIAL_FILLED, ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED, ORDER_STATUS_FAILED, ORDER_STATUS_NONE
 from quant.order import TRADE_TYPE_BUY_OPEN, TRADE_TYPE_SELL_OPEN, TRADE_TYPE_BUY_CLOSE, TRADE_TYPE_SELL_CLOSE
 from quant.order import LIQUIDITY_TYPE_MAKER, LIQUIDITY_TYPE_TAKER
+from quant.market import Kline, Orderbook, Trade, Ticker
 
 
 __all__ = ("HuobiFutureRestAPI", "HuobiFutureTrader", )
@@ -366,7 +367,7 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         self._wss = "wss://api.btcgateway.pro"
         
         url = self._wss + "/notification"
-        super(HuobiFutureTrader, self).__init__(url, send_hb_interval=0)
+        super(HuobiFutureTrader, self).__init__(url, send_hb_interval=0, **kwargs)
         #self.heartbeat_msg = "ping"
 
         # Initializing our REST API client.
@@ -657,7 +658,48 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         quote_currency = None
         syminfo = SymbolInfo(self._platform, symbol, price_tick, size_tick, size_limit, value_tick, value_limit, base_currency, quote_currency)
         return syminfo, None
-    
+
+    async def invalid_indicate(self, symbol, indicate_type):
+        """ update (an) callback function.
+
+        Args:
+            symbol: Contract code
+            indicate_type: INDICATE_ORDER, INDICATE_ASSET, INDICATE_POSITION
+
+        Returns:
+            success: If execute successfully, return True, otherwise it's False.
+            error: If execute failed, return error information, otherwise it's None.
+        """
+        async def _task():
+            if indicate_type == INDICATE_ORDER and self.cb.on_order_update_callback:
+                success, error = await self.get_orders(symbol)
+                if error:
+                    state = State("get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    SingleTask.run(self.cb.on_state_update_callback, state)
+                    return
+                for order in success:
+                    SingleTask.run(self.cb.on_order_update_callback, order)
+            elif indicate_type == INDICATE_ASSET and self.cb.on_asset_update_callback:
+                success, error = await self.get_assets()
+                if error:
+                    state = State("get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    SingleTask.run(self.cb.on_state_update_callback, state)
+                    return
+                SingleTask.run(self.cb.on_asset_update_callback, success)
+            elif indicate_type == INDICATE_POSITION and self.cb.on_position_update_callback:
+                success, error = await self.get_position(symbol)
+                if error:
+                    state = State("get_position error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    SingleTask.run(self.cb.on_state_update_callback, state)
+                    return
+                SingleTask.run(self.cb.on_position_update_callback, success)
+        if indicate_type == INDICATE_ORDER or indicate_type == INDICATE_ASSET or indicate_type == INDICATE_POSITION:
+            SingleTask.run(_task)
+            return True, None
+        else:
+            logger.error("indicate_type error! indicate_type:", indicate_type, caller=self)
+            return False, "indicate_type error"    
+
     @property
     def rest_api(self):
         return self._rest_api
@@ -1093,9 +1135,9 @@ class HuobiFutureMarket(Websocket):
         self._platform = kwargs["platform"]
         self._symbols = kwargs["symbols"]
         self._host = "https://api.btcgateway.pro"
-        self._wss = "wss://www.hbdm.com"
+        self._wss = "wss://www.btcgateway.pro"
         url = self._wss + "/ws"
-        super(HuobiMarket, self).__init__(url, send_hb_interval=0, **kwargs)
+        super(HuobiFutureMarket, self).__init__(url, send_hb_interval=0, **kwargs)
         #self.heartbeat_msg = "ping"
         # Initializing our REST API client.
         self._rest_api = HuobiFutureRestAPI(self._host, None, None)
@@ -1158,19 +1200,19 @@ class HuobiFutureMarket(Websocket):
                 channel = self._symbol_to_channel(symbol_raw, "kline")
                 if channel:
                     kline = {"sub": channel}
-                    await self.send(kline)
+                    await self.send_json(kline)
             #====================================
             if self.cb.on_orderbook_update_callback:
                 channel = self._symbol_to_channel(symbol_raw, "depth")
                 if channel:
                     data = {"sub": channel}
-                    await self.send(data)
+                    await self.send_json(data)
             #====================================
             if self.cb.on_trade_update_callback:
                 channel = self._symbol_to_channel(symbol_raw, "trade")
                 if channel:
                     data = {"sub": channel}
-                    await self.send(data)
+                    await self.send_json(data)
 
     async def process_binary(self, msg):
         """ Process binary message that received from Websocket connection.
@@ -1184,7 +1226,7 @@ class HuobiFutureMarket(Websocket):
         if not channel:
             if data.get("ping"):
                 hb_msg = {"pong": data.get("ping")}
-                await self.send(hb_msg)
+                await self.send_json(hb_msg)
             return
 
         symbol_raw = self._c_to_s[channel]
@@ -1221,19 +1263,20 @@ class HuobiFutureMarket(Websocket):
             SingleTask.run(self.cb.on_orderbook_update_callback, ob)
         elif channel.find("trade") != -1:
             tick = data.get("tick")
-            direction = tick["data"][0].get("direction")
-            price = tick["data"][0].get("price")
-            quantity = tick["data"][0].get("amount")
-            info = {
-                "platform": self._platform,
-                "symbol": symbol,
-                "action": ORDER_ACTION_BUY if direction == "buy" else ORDER_ACTION_SELL,
-                "price": price,
-                "quantity": quantity,
-                "timestamp": tick.get("ts")
-            }
-            trade = Trade(**info)
-            SingleTask.run(self.cb.on_trade_update_callback, trade)
+            for t in tick["data"]:
+                direction = t.get("direction")
+                price = t.get("price")
+                quantity = t.get("amount")
+                info = {
+                    "platform": self._platform,
+                    "symbol": symbol,
+                    "action": ORDER_ACTION_BUY if direction == "buy" else ORDER_ACTION_SELL,
+                    "price": price,
+                    "quantity": quantity,
+                    "timestamp": tick.get("ts")
+                }
+                trade = Trade(**info)
+                SingleTask.run(self.cb.on_trade_update_callback, trade)
         else:
             logger.error("event error! msg:", msg, caller=self)
 

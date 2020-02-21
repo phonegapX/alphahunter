@@ -70,10 +70,10 @@ class Collect(Strategy):
         kwargs = {
             "platform": kline.platform,
             "symbol": kline.symbol,
-            "open": "%.8f" % kline.open,
-            "high": "%.8f" % kline.high,
-            "low": "%.8f" % kline.low,
-            "close": "%.8f" % kline.close,
+            "open": kline.open,
+            "high": kline.high,
+            "low": kline.low,
+            "close": kline.close,
             "volume": kline.volume,
             "timestamp": kline.timestamp,
             "kline_type": kline.kline_type

@@ -1,0 +1,23 @@
+{
+    "RABBITMQ": {
+        "host": "127.0.0.1",
+        "port": 5672,
+        "username": "guest",
+        "password": "guest"
+    },
+    "PROXY": "http://127.0.0.1:6666",
+    "PLATFORMS": [
+        {
+            "platform": "okex"
+        }
+    ],
+    "MARKETS": {
+        "okex": {
+            "symbols": [
+                "BTC-USDT",
+                "ETH-USDT"
+            ]
+        }
+    },
+    "strategy": "okex_collect"
+}

@@ -518,7 +518,7 @@ class FTXTrader(Websocket, ExchangeGateway):
                     return
                 SingleTask.run(self.cb.on_asset_update_callback, success)
             elif indicate_type == INDICATE_POSITION and self.cb.on_position_update_callback:
-                success, error = await self.get_position()
+                success, error = await self.get_position(symbol)
                 if error:
                     state = State("get_position error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                     SingleTask.run(self.cb.on_state_update_callback, state)
@@ -621,9 +621,9 @@ class FTXTrader(Websocket, ExchangeGateway):
         if msg["type"] == "info" and msg["code"] == 20001:
             #交易所重启了,我们就断开连接,websocket会自动重连
             @async_method_locker("FTXTrader._ws_close.locker")
-            async def _ws_close(self):
+            async def _ws_close():
                 await self.socket_close()
-            SingleTask.run(self._ws_close)
+            SingleTask.run(_ws_close)
             return
         
         #{'type': 'subscribed', 'channel': 'trades', 'market': 'BTC-PERP'}
@@ -730,6 +730,8 @@ class FTXMarket(Websocket):
         super(FTXMarket, self).__init__(url, send_hb_interval=15, **kwargs)
         self.heartbeat_msg = {"op": "ping"}
 
+        self._rest_api = FTXRestAPI(self._host, None, None, None)
+
         #订单簿深度数据
         self._orderbooks: DefaultDict[str, Dict[str, DefaultDict[float, float]]] = defaultdict(lambda: {side: defaultdict(float) for side in {'bids', 'asks'}})
         
@@ -776,6 +778,10 @@ class FTXMarket(Websocket):
             return
         logger.debug("msg:", json.dumps(msg), caller=self)
         
+        #{"type": "pong"}
+        if msg.get("type") == "pong":
+            return
+        
         #{"type": "error", "code": 400, "msg": "Invalid login credentials"}
         if msg["type"] == "error":
             state = State("Websocket connection failed: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
@@ -786,9 +792,9 @@ class FTXMarket(Websocket):
         if msg["type"] == "info" and msg["code"] == 20001:
             #交易所重启了,我们就断开连接,websocket会自动重连
             @async_method_locker("FTXMarket._ws_close.locker")
-            async def _ws_close(self):
+            async def _ws_close():
                 await self.socket_close()
-            SingleTask.run(self._ws_close)
+            SingleTask.run(_ws_close)
             return
         
         #{'type': 'subscribed', 'channel': 'trades', 'market': 'BTC-PERP'}
@@ -891,11 +897,11 @@ class FTXMarket(Websocket):
         computed_result = int(zlib.crc32(':'.join(checksum_data).encode()))
         if computed_result != checksum:
             #校验和不对就需要重新订阅深度信息
-            @async_method_locker("FTXTrader._re_subscribe.locker")
-            async def _re_subscribe(self):
+            @async_method_locker("FTXMarket._re_subscribe.locker")
+            async def _re_subscribe():
                 await self.send_json({'op': 'unsubscribe', 'channel': 'orderbook', 'market': market})
                 await self.send_json({'op': 'subscribe', 'channel': 'orderbook', 'market': market})
-            SingleTask.run(self._re_subscribe)
+            SingleTask.run(_re_subscribe)
             #校验和不对就退出
             return
         

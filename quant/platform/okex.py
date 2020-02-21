@@ -252,14 +252,15 @@ class OKExTrader(Websocket, ExchangeGateway):
         self.cb = kwargs["cb"]
         state = None
         
-        if kwargs.get("account") and (not kwargs.get("access_key") or not kwargs.get("secret_key")):
-            state = State("param access_key or secret_key miss")
-        if not kwargs.get("strategy"):
+        if kwargs.get("account") and (not kwargs.get("access_key") or not kwargs.get("secret_key") or not kwargs.get("passphrase")):
+            state = State("param access_key or secret_key or passphrase miss")
+        elif not kwargs.get("strategy"):
             state = State("param strategy miss")
-        if not kwargs.get("symbols"):
+        elif not kwargs.get("symbols"):
             state = State("param symbols miss")
-        if not kwargs.get("passphrase"):
-            state = State("param passphrase miss")
+        elif not kwargs.get("platform"):
+            state = State("param platform miss")
+            
         if state:
             logger.error(state, caller=self)
             SingleTask.run(self.cb.on_state_update_callback, state)
@@ -267,12 +268,11 @@ class OKExTrader(Websocket, ExchangeGateway):
 
         self._platform = kwargs["platform"]
         self._symbols = kwargs["symbols"]
-        self._account = kwargs["account"]
         self._strategy = kwargs["strategy"]
-
-        self._access_key = kwargs["access_key"]
-        self._secret_key = kwargs["secret_key"]
-        self._passphrase = kwargs["passphrase"]
+        self._account = kwargs.get("account")
+        self._access_key = kwargs.get("access_key")
+        self._secret_key = kwargs.get("secret_key")
+        self._passphrase = kwargs.get("passphrase")
 
         self._host = "https://www.okex.me"
         self._wss = "wss://real.okex.me:8443"
@@ -840,9 +840,9 @@ class OKExMarket(Websocket):
         url = self._wss + "/ws/v3"
         super(OKExMarket, self).__init__(url, send_hb_interval=5, **kwargs)
         self.heartbeat_msg = "ping"
-        
         self._orderbook_length = 20
         self._orderbooks = {}  # 订单薄数据 {"symbol": {"bids": {"price": quantity, ...}, "asks": {...}}}
+        self.initialize()
 
     async def connected_callback(self):
         """After create Websocket connection successfully, we will subscribing orderbook/trade/kline."""

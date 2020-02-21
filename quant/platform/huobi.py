@@ -1061,8 +1061,8 @@ class HuobiMarket(Websocket):
             SingleTask.run(self.cb.on_kline_update_callback, kline)
         elif channel.find("depth") != -1:
             d = data["tick"]
-            asks = d["asks"][:10] #[[price, quantity],....]
-            bids = d["bids"][:10]
+            asks = d["asks"][:20] #[[price, quantity],....]
+            bids = d["bids"][:20]
             info = {
                 "platform": self._platform,
                 "symbol": symbol,

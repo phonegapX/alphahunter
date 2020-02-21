@@ -1,7 +1,7 @@
 # -*- coding:utf-8 -*-
 
 """
-huobi市场数据采集模块
+okex市场数据采集模块
 
 Project: alphahunter
 Author: HJQuant
