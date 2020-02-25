@@ -353,3 +353,17 @@ class Strategy(ExchangeGateway.ICallBack):
             error: Error information, otherwise it's None.
         """
         return await gateway.get_symbol_info(symbol)
+
+    async def invalid_indicate(self, gateway, symbol, indicate_type):
+        """ update (an) callback function.
+
+        Args:
+            gateway: 交易网关
+            symbol: Trade target
+            indicate_type: INDICATE_ORDER, INDICATE_ASSET, INDICATE_POSITION
+
+        Returns:
+            success: If execute successfully, return True, otherwise it's False.
+            error: If execute failed, return error information, otherwise it's None.
+        """
+        return await gateway.invalid_indicate(symbol, indicate_type)

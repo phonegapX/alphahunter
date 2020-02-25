@@ -62,9 +62,12 @@ class Websocket:
             self.session = aiohttp.ClientSession()
         try:
             self._ws = await self.session.ws_connect(self._url, proxy=proxy)
-        except (aiohttp.client_exceptions.ClientConnectorError, aiohttp.client_exceptions.ClientHttpProxyError) as e:
+        except (aiohttp.client_exceptions.ClientConnectorError, 
+                aiohttp.client_exceptions.ClientHttpProxyError, 
+                aiohttp.client_exceptions.ServerDisconnectedError, 
+                asyncio.TimeoutError) as e:
             logger.error("connect to server error! url:", self._url, caller=self)
-            state = State("connect to server error! url: {}".format(self._url), State.STATE_CODE_CONNECT_FAILED)
+            state = State("connect to server error! url: {}, error: {}".format(self._url, e), State.STATE_CODE_CONNECT_FAILED)
             SingleTask.run(self.cb.on_state_update_callback, state)
             asyncio.get_event_loop().create_task(self._reconnect()) #如果连接出错就重新连接
             return
@@ -111,11 +114,21 @@ class Websocket:
                     data = json.loads(msg.data)
                 except:
                     data = msg.data
-                #await asyncio.get_event_loop().create_task(self.process(data))
-                await self.process(data)
+                #await asyncio.get_event_loop().create_task(self.process(data)) #这样写的好处是如果里面这个函数发生异常不会影响本循环,因为它在单独任务里面执行
+                try:
+                    await self.process(data)
+                except Exception as e:
+                    logger.error("process ERROR:", e, caller=self)
+                    await self.socket_close() #关闭
+                    break #退出循环
             elif msg.type == aiohttp.WSMsgType.BINARY:
-                #await asyncio.get_event_loop().create_task(self.process_binary(msg.data))
-                await self.process_binary(msg.data)
+                #await asyncio.get_event_loop().create_task(self.process_binary(msg.data)) #好处同上
+                try:
+                    await self.process_binary(msg.data)
+                except Exception as e:
+                    logger.error("process_binary ERROR:", e, caller=self)
+                    await self.socket_close() #关闭
+                    break #退出循环
             elif msg.type == aiohttp.WSMsgType.ERROR:
                 logger.error("receive event ERROR:", msg, caller=self)
                 break #退出循环
@@ -184,7 +197,7 @@ class Websocket:
                 pass #不是网络原因引起的错误,直接忽略
             except TypeError:
                 pass #不是网络原因引起的错误,直接忽略
-            except Exception as exc:
+            except Exception:
                 await self.socket_close() #其他任何类型的未知错误,关闭当前连接
 
     async def send_str(self, data):
@@ -197,7 +210,7 @@ class Websocket:
                 pass #不是网络原因引起的错误,直接忽略
             except TypeError:
                 pass #不是网络原因引起的错误,直接忽略
-            except Exception as exc:
+            except Exception:
                 await self.socket_close() #其他任何类型的未知错误,关闭当前连接
 
     async def socket_close(self):

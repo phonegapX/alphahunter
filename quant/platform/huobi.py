@@ -85,7 +85,7 @@ class HuobiRestAPI:
             return None
         for item in success:
             if item["type"] == "spot":
-                self._account_id = item["id"]
+                self._account_id = str(item["id"])
                 return self._account_id
         return None
 
@@ -190,7 +190,7 @@ class HuobiRestAPI:
                 "Accept": "application/json",
                 "Content-type": "application/json"
             }
-        _, success, error = await AsyncHttpRequests.fetch(method, url, params=params, data=body, headers=headers, timeout=10)
+        _, success, error = await AsyncHttpRequests.fetch(method, url, params=params, data=json.dumps(body), headers=headers, timeout=10)
         if error:
             return success, error
         if success.get("status") != "ok":
@@ -268,6 +268,7 @@ class HuobiTrader(Websocket, ExchangeGateway):
                缺点:延时大,大约270毫秒,乱序,可能丢包(比如服务重启的时候).
         """
         self._use_old_style_order_channel = False #默认用新方式订阅
+        self._pending_order_infos = [] #提交订单函数返回和订单websocket通知顺序不确定,所以需要借助这个变量构造一个完整订单通知上层策略
         self._order_channel = []
         for sym in self._symbols:
             if self._use_old_style_order_channel:
@@ -278,8 +279,13 @@ class HuobiTrader(Websocket, ExchangeGateway):
         if self._account != None:
             self.initialize()
 
-        #市场行情数据
-        HuobiMarket(**kwargs)
+        #如果四个行情回调函数都为空的话,就根本不需要执行市场行情相关代码
+        if (self.cb.on_kline_update_callback or 
+            self.cb.on_orderbook_update_callback or 
+            self.cb.on_trade_update_callback or 
+            self.cb.on_ticker_update_callback):
+            #市场行情数据
+            HuobiMarket(**kwargs)
 
     async def create_order(self, symbol, action, price, quantity, order_type=ORDER_TYPE_LIMIT):
         """ 创建订单
@@ -340,6 +346,12 @@ class HuobiTrader(Websocket, ExchangeGateway):
                 }
                 order = Order(**o)
                 self._orders[symbol][order_no] = order
+                #如果提交订单函数返回的订单ID存在于_pending_order_infos列表中,那证明是websocket通知先于订单函数返回
+                msgs = [i for i in self._pending_order_infos if (i["data"]["symbol"]==order.symbol and str(i["data"]["order-id"])==order.order_no)]
+                if len(msgs) >= 1:
+                    msg = msgs[0]
+                    self._update_order_and_fill(msg) #这里可以理解为重新update一次,因为上一次在websocket通知回调中update没成功(参考上下文代码逻辑去理解)
+                    self._pending_order_infos.remove(msg) #把已经处理过的订单数据从_pending_order_infos里面删除
         #=====================================================
         return result, error
 
@@ -354,12 +366,12 @@ class HuobiTrader(Websocket, ExchangeGateway):
         """
         # 如果传入order_nos为空，即撤销全部委托单
         if len(order_nos) == 0:
-            order_nos, error = await self.get_orders(symbol)
+            orders, error = await self.get_orders(symbol)
             if error:
                 return [], error
-            if not order_nos:
+            if not orders:
                 return [], None
-
+            order_nos = [o.order_no for o in orders]
         # 如果传入order_nos为一个委托单号，那么只撤销一个委托单
         if len(order_nos) == 1:
             success, error = await self._rest_api.revoke_order(order_nos[0])
@@ -571,6 +583,8 @@ class HuobiTrader(Websocket, ExchangeGateway):
         if self._account_id == None:
             state = State("get_account_id error", State.STATE_CODE_GENERAL_ERROR)
             SingleTask.run(self.cb.on_state_update_callback, state)
+            #初始化过程中发生错误,关闭网络连接,触发重连机制
+            await self.socket_close()
             return
         
         #获取相关符号信息
@@ -578,6 +592,8 @@ class HuobiTrader(Websocket, ExchangeGateway):
         if error:
             state = State("get_symbols_info error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
             SingleTask.run(self.cb.on_state_update_callback, state)
+            #初始化过程中发生错误,关闭网络连接,触发重连机制
+            await self.socket_close()
             return
         for info in success:
             self._syminfo[info["symbol"]] = info #符号信息一般不变,获取一次保存好,其他地方要用直接从这个变量获取就可以了
@@ -588,6 +604,8 @@ class HuobiTrader(Websocket, ExchangeGateway):
         if error:
             state = State("get_account_balance error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
             SingleTask.run(self.cb.on_state_update_callback, state)
+            #初始化过程中发生错误,关闭网络连接,触发重连机制
+            await self.socket_close()
             return
         for d in success["list"]:
             b = d["balance"]
@@ -608,6 +626,8 @@ class HuobiTrader(Websocket, ExchangeGateway):
             if error:
                 state = State("get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                 SingleTask.run(self.cb.on_state_update_callback, state)
+                #初始化过程中发生错误,关闭网络连接,触发重连机制
+                await self.socket_close()
                 return
             for order in success:
                 #是否订阅的是新的订单更新频道
@@ -698,15 +718,16 @@ class HuobiTrader(Websocket, ExchangeGateway):
                 logger.error(state, caller=self)
                 SingleTask.run(self.cb.on_state_update_callback, state)
         elif op == "notify":  # 频道更新通知
-            for ch in self._order_channel:
-                if msg["topic"] == ch:
-                    if self._use_old_style_order_channel:
-                        self._update_order_and_fill_old_style(msg)
-                    else:
-                        self._update_order_and_fill(msg)
-                    break
             if msg["topic"] == "accounts":
                 self._update_asset(msg)
+            else:
+                for ch in self._order_channel:
+                    if msg["topic"] == ch:
+                        if self._use_old_style_order_channel:
+                            self._update_order_and_fill_old_style(msg)
+                        else:
+                            self._update_order_and_fill(msg)
+                        break
 
     def _convert_order_format(self, order_info):
         symbol = order_info["symbol"]
@@ -829,9 +850,9 @@ class HuobiTrader(Websocket, ExchangeGateway):
         order_no = str(order_info["order-id"])
         remain = float(order_info["unfilled-amount"])
         action = ORDER_ACTION_BUY if order_info["order-type"] in ["buy-market", "buy-limit", "buy-ioc", "buy-limit-maker", "buy-stop-limit"] else ORDER_ACTION_SELL
-        if order_info["type"] in ["buy-market", "sell-market"]:
+        if order_info["order-type"] in ["buy-market", "sell-market"]:
             order_type = ORDER_TYPE_MARKET
-        elif order_info["type"] in ["buy-ioc", "sell-ioc"]:
+        elif order_info["order-type"] in ["buy-ioc", "sell-ioc"]:
             order_type = ORDER_TYPE_IOC
         else:
             order_type = ORDER_TYPE_LIMIT
@@ -839,6 +860,11 @@ class HuobiTrader(Websocket, ExchangeGateway):
         tm = tools.get_cur_timestamp_ms()
         order = self._orders[symbol].get(order_no)
         if order == None:
+            #执行到这里一般有几种情况,比如说用户在web网站下单,也有可能是我们自己的策略调用下单函数下的单,但是在下单函数返回前,websocket先收到订单通知.
+            #不管是什么情况,总之只保存10个最新的订单信息,如果超过10个,就把最老的一个订单信息删除掉,把最新的保存
+            if len(self._pending_order_infos) > 10:
+                self._pending_order_infos.pop() #弹出列表中最后一个元素
+            self._pending_order_infos.insert(0, msg) #保存到列表第一个位置
             return #如果收到的订单通知在缓存中不存在的话就直接忽略不处理
         order.remain = remain
         order.status = status
@@ -889,9 +915,9 @@ class HuobiTrader(Websocket, ExchangeGateway):
         order_no = str(order_info["order-id"])
         remain = float(order_info["unfilled-amount"])
         action = ORDER_ACTION_BUY if order_info["order-type"] in ["buy-market", "buy-limit", "buy-ioc", "buy-limit-maker", "buy-stop-limit"] else ORDER_ACTION_SELL
-        if order_info["type"] in ["buy-market", "sell-market"]:
+        if order_info["order-type"] in ["buy-market", "sell-market"]:
             order_type = ORDER_TYPE_MARKET
-        elif order_info["type"] in ["buy-ioc", "sell-ioc"]:
+        elif order_info["order-type"] in ["buy-ioc", "sell-ioc"]:
             order_type = ORDER_TYPE_IOC
         else:
             order_type = ORDER_TYPE_LIMIT
@@ -936,29 +962,30 @@ class HuobiTrader(Websocket, ExchangeGateway):
             SingleTask.run(self.cb.on_order_update_callback, order)
         #=====================================================================================
         #接下来处理成交回调
-        fill_no = str(order_info["seq-id"])
-        price = float(order_info["price"]) #成交价格
-        size = float(order_info["filled-amount"]) #成交数量
-        side = action
-        liquidity = LIQUIDITY_TYPE_TAKER if order_info["role"]=="taker" else LIQUIDITY_TYPE_MAKER
-        fee = float(order_info["filled-fees"])
-        f = {
-            "platform": self._platform,
-            "account": self._account,
-            "strategy": self._strategy,
-            "fill_no": fill_no,
-            "order_no": order_no,
-            "side": side, #成交方向,买还是卖
-            "symbol": symbol,
-            "price": price, #成交价格
-            "quantity": size, #成交数量
-            "liquidity": liquidity, #maker成交还是taker成交
-            "fee": fee,
-            "ctime": tm
-        }
-        fill = Fill(**f)
-        if self.cb.on_fill_update_callback:
-            SingleTask.run(self.cb.on_fill_update_callback, fill)
+        if status == ORDER_STATUS_PARTIAL_FILLED or status == ORDER_STATUS_FILLED:
+            fill_no = str(order_info["seq-id"])
+            price = float(order_info["price"]) #成交价格
+            size = float(order_info["filled-amount"]) #成交数量
+            side = action
+            liquidity = LIQUIDITY_TYPE_TAKER if order_info["role"]=="taker" else LIQUIDITY_TYPE_MAKER
+            fee = float(order_info["filled-fees"])
+            f = {
+                "platform": self._platform,
+                "account": self._account,
+                "strategy": self._strategy,
+                "fill_no": fill_no,
+                "order_no": order_no,
+                "side": side, #成交方向,买还是卖
+                "symbol": symbol,
+                "price": price, #成交价格
+                "quantity": size, #成交数量
+                "liquidity": liquidity, #maker成交还是taker成交
+                "fee": fee,
+                "ctime": tm
+            }
+            fill = Fill(**f)
+            if self.cb.on_fill_update_callback:
+                SingleTask.run(self.cb.on_fill_update_callback, fill)
  
     def _update_asset(self, msg):
         """

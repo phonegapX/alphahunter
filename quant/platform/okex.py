@@ -295,8 +295,13 @@ class OKExTrader(Websocket, ExchangeGateway):
         if self._account != None:
             self.initialize()
 
-        #市场行情数据
-        OKExMarket(**kwargs)
+        #如果四个行情回调函数都为空的话,就根本不需要执行市场行情相关代码
+        if (self.cb.on_kline_update_callback or 
+            self.cb.on_orderbook_update_callback or 
+            self.cb.on_trade_update_callback or 
+            self.cb.on_ticker_update_callback):
+            #市场行情数据
+            OKExMarket(**kwargs)
 
     async def create_order(self, symbol, action, price, quantity, order_type=ORDER_TYPE_LIMIT, *args, **kwargs):
         """ Create an order.
@@ -551,6 +556,8 @@ class OKExTrader(Websocket, ExchangeGateway):
         if error:
             state = State("get_symbols_info error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
             SingleTask.run(self.cb.on_state_update_callback, state)
+            #初始化过程中发生错误,关闭网络连接,触发重连机制
+            await self.socket_close()
             return
         for info in success:
             self._syminfo[info["instrument_id"]] = info #符号信息一般不变,获取一次保存好,其他地方要用直接从这个变量获取就可以了
@@ -591,6 +598,8 @@ class OKExTrader(Websocket, ExchangeGateway):
         if error:
             state = State("get_account_balance error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
             SingleTask.run(self.cb.on_state_update_callback, state)
+            #初始化过程中发生错误,关闭网络连接,触发重连机制
+            await self.socket_close()
             return
         self._update_asset(success)
         
@@ -624,6 +633,8 @@ class OKExTrader(Websocket, ExchangeGateway):
             if error:
                 state = State("get open orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                 SingleTask.run(self.cb.on_state_update_callback, state)
+                #初始化过程中发生错误,关闭网络连接,触发重连机制
+                await self.socket_close()
                 return
             for order_info in success:
                 self._update_order(order_info)

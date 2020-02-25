@@ -244,10 +244,13 @@ class DemoStrategy(Strategy):
 
 
 def main():
-    if len(sys.argv) > 1:
-        config_file = sys.argv[1]
-    else:
-        config_file = None
+    if len(sys.argv) <= 1:
+        logger.error("config.json miss")
+        return
+    config_file = sys.argv[1]
+    if not config_file.lower().endswith("config.json"):
+        logger.error("config.json miss")
+        return
 
     from quant.quant import quant
     quant.initialize(config_file)

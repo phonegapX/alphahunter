@@ -383,9 +383,13 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         if self._account != None:
             self.initialize()
 
-        #市场行情数据
-        HuobiFutureMarket(**kwargs)
-
+        #如果四个行情回调函数都为空的话,就根本不需要执行市场行情相关代码
+        if (self.cb.on_kline_update_callback or 
+            self.cb.on_orderbook_update_callback or 
+            self.cb.on_trade_update_callback or 
+            self.cb.on_ticker_update_callback):
+            #市场行情数据
+            HuobiFutureMarket(**kwargs)
 
     async def create_order(self, symbol, action, price, quantity, order_type=ORDER_TYPE_LIMIT, *args, **kwargs):
         """ Create an order.
@@ -784,6 +788,8 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         if error:
             state = State("_init_symbol_info error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
             SingleTask.run(self.cb.on_state_update_callback, state)
+            #初始化过程中发生错误,关闭网络连接,触发重连机制
+            await self.socket_close()
             return
 
         #获取当前未完成订单
@@ -793,6 +799,8 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
                 if error:
                     state = State("get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                     SingleTask.run(self.cb.on_state_update_callback, state)
+                    #初始化过程中发生错误,关闭网络连接,触发重连机制
+                    await self.socket_close()
                     return
                 for order in success:
                     SingleTask.run(self.cb.on_order_update_callback, order)
@@ -804,6 +812,8 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
                 if error:
                     state = State("get_position error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                     SingleTask.run(self.cb.on_state_update_callback, state)
+                    #初始化过程中发生错误,关闭网络连接,触发重连机制
+                    await self.socket_close()
                     return
                 SingleTask.run(self.cb.on_position_update_callback, success)
 
@@ -813,6 +823,8 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
             if error:
                 state = State("get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                 SingleTask.run(self.cb.on_state_update_callback, state)
+                #初始化过程中发生错误,关闭网络连接,触发重连机制
+                await self.socket_close()
                 return
             SingleTask.run(self.cb.on_asset_update_callback, success)
 
@@ -1189,6 +1201,8 @@ class HuobiFutureMarket(Websocket):
         if error:
             state = State("_init_symbol_info error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
             SingleTask.run(self.cb.on_state_update_callback, state)
+            #初始化过程中发生错误,关闭网络连接,触发重连机制
+            await self.socket_close()
             return
         for symbol in self._symbols: #这里的symbol实际是Contract code
             info = self._syminfo[symbol]
