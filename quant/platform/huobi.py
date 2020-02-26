@@ -848,7 +848,6 @@ class HuobiTrader(Websocket, ExchangeGateway):
             return
         symbol = order_info["symbol"]
         order_no = str(order_info["order-id"])
-        remain = float(order_info["unfilled-amount"])
         action = ORDER_ACTION_BUY if order_info["order-type"] in ["buy-market", "buy-limit", "buy-ioc", "buy-limit-maker", "buy-stop-limit"] else ORDER_ACTION_SELL
         if order_info["order-type"] in ["buy-market", "sell-market"]:
             order_type = ORDER_TYPE_MARKET
@@ -866,7 +865,10 @@ class HuobiTrader(Websocket, ExchangeGateway):
                 self._pending_order_infos.pop() #弹出列表中最后一个元素
             self._pending_order_infos.insert(0, msg) #保存到列表第一个位置
             return #如果收到的订单通知在缓存中不存在的话就直接忽略不处理
-        order.remain = remain
+        if action == ORDER_ACTION_BUY and order_type == ORDER_TYPE_MARKET:
+            order.remain = order.quantity - float(order_info["filled-cash-amount"]) #市价买单传入的是金额,输出的也要是金额
+        else:
+            order.remain = float(order_info["unfilled-amount"])
         order.status = status
         order.utime = tm
         if self.cb.on_order_update_callback:
@@ -913,7 +915,6 @@ class HuobiTrader(Websocket, ExchangeGateway):
         order_info = msg["data"]
         symbol = order_info["symbol"]
         order_no = str(order_info["order-id"])
-        remain = float(order_info["unfilled-amount"])
         action = ORDER_ACTION_BUY if order_info["order-type"] in ["buy-market", "buy-limit", "buy-ioc", "buy-limit-maker", "buy-stop-limit"] else ORDER_ACTION_SELL
         if order_info["order-type"] in ["buy-market", "sell-market"]:
             order_type = ORDER_TYPE_MARKET
@@ -921,6 +922,11 @@ class HuobiTrader(Websocket, ExchangeGateway):
             order_type = ORDER_TYPE_IOC
         else:
             order_type = ORDER_TYPE_LIMIT
+        quantity = float(order_info["order-amount"])
+        if action == ORDER_ACTION_BUY and order_type == ORDER_TYPE_MARKET:
+            remain = quantity - float(order_info["filled-cash-amount"]) #市价买单传入的是金额,输出的也要是金额
+        else:
+            remain = float(order_info["unfilled-amount"])
         ctime = order_info["created-at"]
         utime = tm
         state = order_info["order-state"]
@@ -949,7 +955,7 @@ class HuobiTrader(Websocket, ExchangeGateway):
             "action": action,
             "symbol": symbol,
             "price": float(order_info["order-price"]),
-            "quantity": float(order_info["order-amount"]),
+            "quantity": quantity,
             "remain": remain,
             "status": status,
             "order_type": order_type,

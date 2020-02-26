@@ -5,18 +5,19 @@
         "username": "guest",
         "password": "guest"
     },
+    "PROXY": "http://127.0.0.1:6666",
     "ACCOUNTS": [
         {
             "platform": "okex",
-            "account": "abc123@gmail.com",
+            "account": "test",
             "access_key": "xxxxxxxxxxxx",
             "secret_key": "xxxxxxxxxxxx",
-            "passphrase": "abc123"
+            "passphrase": "mytest"
         }
     ],
     "MARKETS": {
         "okex": {
-            "symbols": ["BTC-USDT"]
+            "symbols": ["ETH-USDT", "BTC-USDT"]
         }
     },
     "strategy": "my_test_strategy"

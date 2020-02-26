@@ -18,6 +18,7 @@ import base64
 import urllib
 import hashlib
 import datetime
+import time
 from urllib import parse
 from urllib.parse import urljoin
 from collections import defaultdict, deque
@@ -26,7 +27,7 @@ from typing import DefaultDict, Deque, List, Dict, Tuple, Optional, Any
 from quant.gateway import ExchangeGateway
 from quant.state import State
 from quant.utils import tools, logger
-from quant.const import MARKET_TYPE_KLINE
+from quant.const import MARKET_TYPE_KLINE, INDICATE_ORDER, INDICATE_ASSET, INDICATE_POSITION
 from quant.order import Order, Fill, SymbolInfo
 from quant.position import Position
 from quant.asset import Asset
@@ -239,7 +240,7 @@ class OKExRestAPI:
             headers["OK-ACCESS-SIGN"] = sign.decode()
             headers["OK-ACCESS-TIMESTAMP"] = str(timestamp)
             headers["OK-ACCESS-PASSPHRASE"] = self._passphrase
-        _, success, error = await AsyncHttpRequests.fetch(method, url, body=body, headers=headers, timeout=10)
+        _, success, error = await AsyncHttpRequests.fetch(method, url, data=body, headers=headers, timeout=10)
         return success, error
 
 
@@ -274,8 +275,8 @@ class OKExTrader(Websocket, ExchangeGateway):
         self._secret_key = kwargs.get("secret_key")
         self._passphrase = kwargs.get("passphrase")
 
-        self._host = "https://www.okex.me"
-        self._wss = "wss://real.okex.me:8443"
+        self._host = "https://www.okex.com"
+        self._wss = "wss://real.okex.com:8443"
 
         self._order_channel = []
         for sym in self._symbols:
@@ -375,6 +376,7 @@ class OKExTrader(Websocket, ExchangeGateway):
             s, e = await self._rest_api.revoke_orders(symbol, order_nos)
             if e:
                 return [], e
+            result = []
             for d in s.get(symbol):
                 if d["result"]:
                     result.append((d["order_id"], None))
@@ -650,9 +652,11 @@ class OKExTrader(Websocket, ExchangeGateway):
         #订阅账户余额通知
         if self.cb.on_asset_update_callback:
             sl = []
-            for si in self._syminfo:
-                sl.append(si["base_currency"])
-                sl.append(si["quote_currency"])
+            for sym in self._symbols:
+                si = self._syminfo[sym]
+                if si:
+                    sl.append(si["base_currency"])
+                    sl.append(si["quote_currency"])
             #set的目的是去重
             self._account_channel = []
             for s in set(sl):
@@ -760,7 +764,6 @@ class OKExTrader(Websocket, ExchangeGateway):
     def _convert_order_format(self, order_info):
         order_no = str(order_info["order_id"])
         symbol = order_info["instrument_id"]
-        remain = float(order_info["size"]) - float(order_info["filled_size"])
         ctime = tools.utctime_str_to_mts(order_info["created_at"])
         utime = tools.utctime_str_to_mts(order_info["timestamp"])
         state = order_info["state"]
@@ -783,15 +786,25 @@ class OKExTrader(Websocket, ExchangeGateway):
                 order_type = ORDER_TYPE_IOC
             else:
                 order_type = ORDER_TYPE_LIMIT
+        action = ORDER_ACTION_BUY if order_info["side"] == "buy" else ORDER_ACTION_SELL
+        if order_type == ORDER_TYPE_MARKET and action == ORDER_ACTION_BUY:
+            quantity = float(order_info["notional"]) #市价买单传入的是金额,输出的也要是金额
+            remain = quantity - float(order_info["filled_notional"]) #市价买单传入的是金额,输出的也要是金额
+        else:
+            quantity = float(order_info["size"])
+            remain = quantity - float(order_info["filled_size"])
+        price_str = order_info["price"]
+        if not price_str:
+            price_str = "0"
         info = {
             "platform": self._platform,
             "account": self._account,
             "strategy": self._strategy,
             "order_no": order_no,
-            "action": ORDER_ACTION_BUY if order_info["side"] == "buy" else ORDER_ACTION_SELL,
+            "action": action,
             "symbol": symbol,
-            "price": float(order_info["price"]),
-            "quantity": float(order_info["size"]),
+            "price": float(price_str),
+            "quantity": quantity,
             "remain": remain,
             "order_type": order_type,
             "status": status,
@@ -810,7 +823,7 @@ class OKExTrader(Websocket, ExchangeGateway):
         Returns:
             None.
         """
-        if order_info["margin_trading"] != "1": # 1.币币交易订单 2.杠杆交易订单
+        if order_info.get("margin_trading") and order_info["margin_trading"] != "1": # 1.币币交易订单 2.杠杆交易订单
             return
         order = self._convert_order_format(order_info)
         if self.cb.on_order_update_callback:

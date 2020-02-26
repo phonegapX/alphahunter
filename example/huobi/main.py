@@ -93,7 +93,6 @@ class DemoStrategy(Strategy):
             s, e = await self.get_orders(self.gw, "eoseth")
             #s, e = await self.invalid_indicate(self.gw, "eoseth", const.INDICATE_ASSET)
             #s, e = await self.invalid_indicate(self.gw, "eoseth", const.INDICATE_ORDER)
-            #xx = self.create_order(self.gw, "eoseth", ORDER_ACTION_SELL, "0", "0.002", ORDER_TYPE_MARKET)
             #s, e = await self.revoke_order(self.gw, "eoseth", "70873572342")
             #s, e = await self.revoke_order(self.gw, "eoseth")
         elif state.code == State.STATE_CODE_CONNECT_SUCCESS:    #交易接口连接成功
