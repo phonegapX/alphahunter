@@ -7,18 +7,16 @@ from pymongo import UpdateOne, InsertOne
 from models import Trade, Symbol, Exchange, Kline
 
 
-one_day = 60 * 60 * 24 * 1000
+ONE_DAY = 60 * 60 * 24 * 1000  # 一天毫秒数
 LIMIT = 500
 
 
 async def main():
     begin_timestamp = 1575129600000  # 开始时间, 12-1 00:00:00.000
-    # end_timestamp = 1578585600000  # 结束时间 01-10  00:00:00.000
-    end_timestamp = begin_timestamp + one_day * 2
-    for begin_dt in range(begin_timestamp, end_timestamp, one_day):
+    end_timestamp = 1578585600000  # 结束时间 01-10  00:00:00.000
+    # end_timestamp = begin_timestamp + ONE_DAY * 2
+    for begin_dt in range(begin_timestamp, end_timestamp, ONE_DAY):
         await day_loop(begin_dt)
-    # 计算
-    # 存储
 
 
 async def day_loop(begin_dt):
@@ -34,15 +32,19 @@ async def day_loop(begin_dt):
             # 查询trade数据
             trade = Trade(exchange_name, focus_symbol)
             kline = Kline(exchange_name, focus_symbol)
-            await insert(trade, kline, begin_dt)
+
+            # 计算
+            klines = await calculate(trade, kline, begin_dt)
+
+            # 存储
+            await insert(kline, begin_dt, klines)
             break
 
 
-async def insert(trade, kline, begin_timestamp):
+async def calculate(trade, kline, begin_timestamp):
     # 查询上一天最后一笔trade数据的trade price
     prev_close_price = await query_prev_close_price(begin_timestamp, trade)
     prev_kline = await query_prev_kline(kline, begin_timestamp)
-    print(prev_kline, "prev_kline")
 
     klines = []
     kline_document = {}
@@ -50,7 +52,7 @@ async def insert(trade, kline, begin_timestamp):
 
     # 按照 kline 时间段划分
     # for begin_dt in range(begin_timestamp, begin_timestamp + kline.interval * 5, kline.interval):
-    for begin_dt in range(begin_timestamp, begin_timestamp + one_day, kline.interval):
+    for begin_dt in range(begin_timestamp, begin_timestamp + ONE_DAY, kline.interval):
         end_dt = begin_dt + kline.interval
         kline_document = {
             "begin_dt": begin_dt,
@@ -112,14 +114,11 @@ async def insert(trade, kline, begin_timestamp):
         open_trades = []
         close_trades = []
         tradeprices = []
-        sum_amount_check = 0  # TODO: 之后删除
 
         duration = kline.interval * 0.2
 
         for t_document in trades:
             tradeprices.append(t_document["tradeprice"])
-            # TODO: amount_check = sum(trade price * volume)
-            sum_amount_check += t_document["tradeprice"] * t_document["volume"]
 
             if t_document["direction"] == "buy":
                 buy_trades.append(t_document)
@@ -135,7 +134,6 @@ async def insert(trade, kline, begin_timestamp):
         low = min(tradeprices) if tradeprices else 0.0
         kline_document["high"] = high
         kline_document["low"] = low
-        kline_document["amount_check"] = sum_amount_check
 
         kline_document["book_count"] = len(trades)
         kline_document["buy_book_count"] = len(buy_trades)
@@ -184,18 +182,13 @@ async def insert(trade, kline, begin_timestamp):
         kline_document["sectional_sell_book_count"] = prev_kline.get("sectional_sell_book_count", 0.0) + \
             kline_document["sell_book_count"]
 
-        # TODO: check open_avg_check = sum(trade price * volume) / sum(volume)
         if open_trades:
             results = handle_documents(open_trades)
             kline_document["open_avg"] = results["avg_price"]
-            # TODO: 删除check
-            kline_document["open_avg_check"] = get_avg_check(open_trades)
 
         if close_trades:
             results = handle_documents(close_trades)
             kline_document["close_avg"] = results["avg_price"]
-            # TODO: 删除check
-            kline_document["close_avg_check"] = get_avg_check(close_trades)
 
         kline_document["lag_ret"] = math.log(kline_document["close_avg"] / prev_kline["close_avg"]) \
             if prev_kline["close_avg"] and kline_document["close_avg"] else None
@@ -226,6 +219,10 @@ async def insert(trade, kline, begin_timestamp):
 
     # 加上最后一个没有prev_price 的kline
     klines.append(InsertOne(kline_document))
+    return klines
+
+
+async def insert(kline, begin_timestamp, klines):
     for offset in range(0, len(klines), LIMIT):
         result = await kline.insert_many(klines[offset: offset + LIMIT])
         print(result.bulk_api_result, begin_timestamp, kline.collection_name)
@@ -233,7 +230,7 @@ async def insert(trade, kline, begin_timestamp):
 
 async def query_prev_close_price(begin_timestamp, trade):
     prev_trade_cursor = trade.collection.find(
-        {"tradedt": {"$gte": begin_timestamp - one_day, "$lt": begin_timestamp}}).sort("tradedt", -1)
+        {"tradedt": {"$gte": begin_timestamp - ONE_DAY, "$lt": begin_timestamp}}).sort("tradedt", -1)
     prev_trades = [t_document for t_document in await prev_trade_cursor.to_list(length=1)]
     prev_close_price = prev_trades[0].get("tradeprice", 0.0) if prev_trades else 0.0
 
@@ -250,19 +247,6 @@ async def query_prev_kline(kline, begin_timestamp):
     }
 
 
-async def calculate():
-    pass
-
-
-def get_avg_check(documents):
-    divisor = 0
-    denominator = 0
-    for document in documents:
-        divisor += document["tradeprice"] * document["volume"]
-        denominator += document["volume"]
-    return divisor / denominator
-
-
 def handle_documents(documents):
     sum_amount = 0
     sum_volume = 0
@@ -275,14 +259,6 @@ def handle_documents(documents):
         "sum_volume": sum_volume,
         "sum_amount": sum_amount,
     }
-
-
-async def get_df():
-    kline = Kline(exchange_name="binance", symbol_name="btcusdt")
-    begin = 1575129600000 + 60 * 60 * 8 * 1000
-    end = 1575129600000 + 60 * 60 * 10 * 1000
-    df = await kline.get_df_from_table({"begin_dt": {"$gte": begin, "$lt": end}})
-    print(df)
 
 
 if __name__ == '__main__':
