@@ -1,6 +1,10 @@
 # -*- coding: utf-8 -*-
 import re
 import asyncio
+import datetime
+import time
+import pandas as pd
+
 from pandas import DataFrame
 
 from mongo_utils import get_mongo_conn
@@ -24,6 +28,74 @@ class Base(object):
             cursor = self.collection.find(query).skip(skip).limit(limit)
         documents = [t_document for t_document in await cursor.to_list(length=limit)]
         return DataFrame(documents)
+
+    async def to_daily(self, begin_dt_str, end_dt_str, key, lookback_hour, lookahead_hour, save_path):
+        """
+        示例:
+
+        async def test():
+            trade = Trade(exchange_name="binance", symbol_name="btcusdt")
+            begin_str = "2019-12-01 11:23:56.123"
+            end_str = "2019-12-01 14:24:56.123"
+            save_path = "想要存放的路径"
+            lookback_hour = 2
+            lookahead_hour = 2
+            await trade.to_daily(begin_str, end_str, "tradedt", lookback_hour, lookahead_hour, save_path)
+        """
+        if begin_dt_str > end_dt_str:
+            raise ValueError("开始时间不能大于结束时间")
+
+        days = self.divide_days(begin_dt_str, end_dt_str)
+
+        for i in range(0, len(days) - 1):
+            begin_dt = days[i]
+            begin_timestamp = datetime_2_timestamp(begin_dt)
+            end_timestamp = datetime_2_timestamp(days[i + 1])
+            # 查找该时间间隔内
+            now_df = await self.get_df(key, begin_timestamp, end_timestamp)
+            if now_df.empty:
+                continue
+
+            # 历史
+            back_microsecond = lookback_hour * 60 * 60 * 1000
+            lookback_df = await self.get_df(key, begin_timestamp - back_microsecond, begin_timestamp, False)
+
+            # 未来
+            ahead_microsecond = lookahead_hour * 60 * 60 * 1000
+            lookahead_df = await self.get_df(key, end_timestamp, end_timestamp + ahead_microsecond, False)
+
+            df = pd.concat([lookback_df, now_df, lookahead_df], axis=0, sort=False)
+            df.insert(0, "local_time", df[key])
+            df["local_time"] = df.apply(mic_timestamp_2_datetime, axis=1)
+
+            file_name = save_path + "/" + begin_dt.strftime("%Y%m%d") + ".pkl"
+            df.to_pickle(file_name)
+            file_name_csv = save_path + "/" + begin_dt.strftime("%Y%m%d") + ".csv"
+            df.to_csv(file_name_csv)
+
+    async def get_df(self, key, begin_timestamp, end_timestamp, good=True):
+        cursor = self.collection.find({key: {"$gte": begin_timestamp, "$lt": end_timestamp}}, {"_id": 0}).sort(key)
+        documents = []
+        async for document in cursor:
+            documents.append(document)
+        # 若没有数据, 则跳过
+        if not documents:
+            return DataFrame([])
+        df = DataFrame(documents)
+        df["good"] = good
+        return df
+
+    def divide_days(self, begin_dt_str, end_dt_str):
+        begin_dt = str_2_datetime(begin_dt_str)
+        end_dt = str_2_datetime(end_dt_str)
+        # begin_dt 当天结束
+        one_day_end = datetime.datetime(begin_dt.year, begin_dt.month, begin_dt.day + 1)
+        interval = end_dt - one_day_end
+        # 按时间划分
+        days = [one_day_end + datetime.timedelta(days=i) for i in range(0, interval.days+1)]
+        days.insert(0, begin_dt)
+        days.append(end_dt)
+        return days
 
 
 class Exchange(Base):
@@ -69,7 +141,7 @@ class Symbol(Base):
         return
 
 
-class OrderBook(object):
+class OrderBook(Base):
     """
     市场订单簿表
     创建索引
@@ -149,3 +221,22 @@ class Kline(Base):
     def insert_many(self, klines):
         result = yield from self.collection.bulk_write(klines)
         return result
+
+
+def str_2_datetime(date_str):
+    dt = datetime.datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S.%f")
+    return dt
+
+
+def datetime_2_timestamp(dt):
+    t = dt.timetuple()
+    timestamp = int(time.mktime(t)) * 1000 + round(dt.microsecond / 1000)
+    return timestamp
+
+
+def mic_timestamp_2_datetime(series):
+    # 毫秒时间戳转时间
+    mic_timestamp = series.get("local_time")
+    timestamp = mic_timestamp / 1000
+    dt = datetime.datetime.fromtimestamp(timestamp)
+    return dt
