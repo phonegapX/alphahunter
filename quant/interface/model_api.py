@@ -42,7 +42,7 @@ class ModelAPI:
     def timenow_unix_time():
         """ 获取现在时间距离 Unix新纪元（1970年1月1日）的毫秒数
         """
-        InfraAPI.timenow_unix_time()
+        return InfraAPI.timenow_unix_time()
 
     @staticmethod
     def convert_unix_time(dt):

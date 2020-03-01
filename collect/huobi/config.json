@@ -14,7 +14,8 @@
         "huobi": {
             "symbols": [
                 "eoseth",
-                "trxeth"
+                "trxeth",
+                "ethusdt"
             ]
         }
     },

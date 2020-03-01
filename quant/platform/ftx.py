@@ -171,27 +171,29 @@ class FTXTrader(Websocket, ExchangeGateway):
         """Initialize."""
         self.cb = kwargs["cb"]
         state = None
-        if kwargs.get("account") and (not kwargs.get("access_key") or not kwargs.get("secret_key")):
-            state = State("param access_key or secret_key miss")
-        elif not kwargs.get("strategy"):
-            state = State("param strategy miss")
-        elif not kwargs.get("symbols"):
-            state = State("param symbols miss")
-        elif not kwargs.get("platform"):
-            state = State("param platform miss")
-            
+        
+        self._platform = kwargs.get("platform")
+        self._symbols = kwargs.get("symbols")
+        self._strategy = kwargs.get("strategy")
+        self._account = kwargs.get("account")
+        self._access_key = kwargs.get("access_key")
+        self._secret_key = kwargs.get("secret_key")
+        self._subaccount_name = kwargs.get("subaccount_name")
+
+        if not self._platform:
+            state = State(self._platform, self._account, "param platform miss")
+        elif self._account and (not self._access_key or not self._secret_key):
+            state = State(self._platform, self._account, "param access_key or secret_key miss")
+        elif not self._strategy:
+            state = State(self._platform, self._account, "param strategy miss")
+        elif not self._symbols:
+            state = State(self._platform, self._account, "param symbols miss")
+
         if state:
             logger.error(state, caller=self)
             SingleTask.run(self.cb.on_state_update_callback, state)
             return
 
-        self._account = kwargs.get("account")
-        self._access_key = kwargs.get("access_key")
-        self._secret_key = kwargs.get("secret_key")
-        self._subaccount_name = kwargs.get("subaccount_name")
-        self._strategy = kwargs["strategy"]
-        self._platform = kwargs["platform"]
-        self._symbols = kwargs["symbols"]
         self._host = "https://ftx.com"
         self._wss = "wss://ftx.com"
         
@@ -510,7 +512,7 @@ class FTXTrader(Websocket, ExchangeGateway):
             if indicate_type == INDICATE_ORDER and self.cb.on_order_update_callback:
                 success, error = await self.get_orders(symbol)
                 if error:
-                    state = State("get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    state = State(self._platform, self._account, "get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                     SingleTask.run(self.cb.on_state_update_callback, state)
                     return
                 for order in success:
@@ -518,14 +520,14 @@ class FTXTrader(Websocket, ExchangeGateway):
             elif indicate_type == INDICATE_ASSET and self.cb.on_asset_update_callback:
                 success, error = await self.get_assets()
                 if error:
-                    state = State("get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    state = State(self._platform, self._account, "get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                     SingleTask.run(self.cb.on_state_update_callback, state)
                     return
                 SingleTask.run(self.cb.on_asset_update_callback, success)
             elif indicate_type == INDICATE_POSITION and self.cb.on_position_update_callback:
                 success, error = await self.get_position(symbol)
                 if error:
-                    state = State("get_position error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    state = State(self._platform, self._account, "get_position error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                     SingleTask.run(self.cb.on_state_update_callback, state)
                     return
                 SingleTask.run(self.cb.on_position_update_callback, success)
@@ -560,7 +562,7 @@ class FTXTrader(Websocket, ExchangeGateway):
 
             success, error = await self._rest_api.list_markets()
             if error:
-                state = State("list_markets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                state = State(self._platform, self._account, "list_markets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                 SingleTask.run(self.cb.on_state_update_callback, state)
                 #初始化过程中发生错误,关闭网络连接,触发重连机制
                 await self.socket_close()
@@ -572,7 +574,7 @@ class FTXTrader(Websocket, ExchangeGateway):
                 for sym in self._symbols:
                     orders, error = await self.get_orders(sym)
                     if error:
-                        state = State("get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                        state = State(self._platform, self._account, "get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                         SingleTask.run(self.cb.on_state_update_callback, state)
                         #初始化过程中发生错误,关闭网络连接,触发重连机制
                         await self.socket_close()
@@ -584,7 +586,7 @@ class FTXTrader(Websocket, ExchangeGateway):
                 for sym in self._symbols:
                     pos, error = await self.get_position(sym)
                     if error:
-                        state = State("get_position error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                        state = State(self._platform, self._account, "get_position error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                         SingleTask.run(self.cb.on_state_update_callback, state)
                         #初始化过程中发生错误,关闭网络连接,触发重连机制
                         await self.socket_close()
@@ -594,7 +596,7 @@ class FTXTrader(Websocket, ExchangeGateway):
             if self.cb.on_asset_update_callback != None:
                 ast, error = await self.get_assets()
                 if error:
-                    state = State("get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    state = State(self._platform, self._account, "get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                     SingleTask.run(self.cb.on_state_update_callback, state)
                     #初始化过程中发生错误,关闭网络连接,触发重连机制
                     await self.socket_close()
@@ -626,7 +628,7 @@ class FTXTrader(Websocket, ExchangeGateway):
         
         #{"type": "error", "code": 400, "msg": "Invalid login credentials"}
         if msg["type"] == "error":
-            state = State("Websocket connection failed: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
+            state = State(self._platform, self._account, "Websocket connection failed: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
             logger.error(state, caller=self)
             SingleTask.run(self.cb.on_state_update_callback, state)
             return
@@ -646,7 +648,7 @@ class FTXTrader(Websocket, ExchangeGateway):
         if msg["type"] == "subscribed":
             self._subscribe_response_count = self._subscribe_response_count + 1 #每来一次订阅响应计数就加一
             if self._subscribe_response_count == 2: #所有的订阅都成功了,通知上层接口都准备好了
-                state = State("Environment ready", State.STATE_CODE_READY)
+                state = State(self._platform, self._account, "Environment ready", State.STATE_CODE_READY)
                 SingleTask.run(self.cb.on_state_update_callback, state)
             return
 
@@ -797,7 +799,7 @@ class FTXMarket(Websocket):
         
         #{"type": "error", "code": 400, "msg": "Invalid login credentials"}
         if msg["type"] == "error":
-            state = State("Websocket connection failed: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
+            state = State(self._platform, self._account, "Websocket connection failed: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
             logger.error(state, caller=self)
             SingleTask.run(self.cb.on_state_update_callback, state)
             return

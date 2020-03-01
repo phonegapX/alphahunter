@@ -253,27 +253,27 @@ class OKExTrader(Websocket, ExchangeGateway):
         self.cb = kwargs["cb"]
         state = None
         
-        if kwargs.get("account") and (not kwargs.get("access_key") or not kwargs.get("secret_key") or not kwargs.get("passphrase")):
-            state = State("param access_key or secret_key or passphrase miss")
-        elif not kwargs.get("strategy"):
-            state = State("param strategy miss")
-        elif not kwargs.get("symbols"):
-            state = State("param symbols miss")
-        elif not kwargs.get("platform"):
-            state = State("param platform miss")
-            
-        if state:
-            logger.error(state, caller=self)
-            SingleTask.run(self.cb.on_state_update_callback, state)
-            return
-
-        self._platform = kwargs["platform"]
-        self._symbols = kwargs["symbols"]
-        self._strategy = kwargs["strategy"]
+        self._platform = kwargs.get("platform")
+        self._symbols = kwargs.get("symbols")
+        self._strategy = kwargs.get("strategy")
         self._account = kwargs.get("account")
         self._access_key = kwargs.get("access_key")
         self._secret_key = kwargs.get("secret_key")
         self._passphrase = kwargs.get("passphrase")
+        
+        if not self._platform:
+            state = State(self._platform, self._account, "param platform miss")
+        elif self._account and (not self._access_key or not self._secret_key or not self._passphrase):
+            state = State(self._platform, self._account, "param access_key or secret_key or passphrase miss")
+        elif not self._strategy:
+            state = State(self._platform, self._account, "param strategy miss")
+        elif not self._symbols:
+            state = State(self._platform, self._account, "param symbols miss")
+
+        if state:
+            logger.error(state, caller=self)
+            SingleTask.run(self.cb.on_state_update_callback, state)
+            return
 
         self._host = "https://www.okex.com"
         self._wss = "wss://real.okex.com:8443"
@@ -490,7 +490,7 @@ class OKExTrader(Websocket, ExchangeGateway):
             if indicate_type == INDICATE_ORDER and self.cb.on_order_update_callback:
                 success, error = await self.get_orders(symbol)
                 if error:
-                    state = State("get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    state = State(self._platform, self._account, "get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                     SingleTask.run(self.cb.on_state_update_callback, state)
                     return
                 for order in success:
@@ -498,7 +498,7 @@ class OKExTrader(Websocket, ExchangeGateway):
             elif indicate_type == INDICATE_ASSET and self.cb.on_asset_update_callback:
                 success, error = await self.get_assets()
                 if error:
-                    state = State("get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    state = State(self._platform, self._account, "get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                     SingleTask.run(self.cb.on_state_update_callback, state)
                     return
                 SingleTask.run(self.cb.on_asset_update_callback, success)
@@ -556,7 +556,7 @@ class OKExTrader(Websocket, ExchangeGateway):
         """
         success, error = await self._rest_api.get_symbols_info()
         if error:
-            state = State("get_symbols_info error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+            state = State(self._platform, self._account, "get_symbols_info error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
             SingleTask.run(self.cb.on_state_update_callback, state)
             #初始化过程中发生错误,关闭网络连接,触发重连机制
             await self.socket_close()
@@ -598,7 +598,7 @@ class OKExTrader(Websocket, ExchangeGateway):
         """
         success, error = await self._rest_api.get_account_balance()
         if error:
-            state = State("get_account_balance error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+            state = State(self._platform, self._account, "get_account_balance error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
             SingleTask.run(self.cb.on_state_update_callback, state)
             #初始化过程中发生错误,关闭网络连接,触发重连机制
             await self.socket_close()
@@ -633,7 +633,7 @@ class OKExTrader(Websocket, ExchangeGateway):
             """
             success, error = await self._rest_api.get_open_orders(sym)
             if error:
-                state = State("get open orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                state = State(self._platform, self._account, "get open orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                 SingleTask.run(self.cb.on_state_update_callback, state)
                 #初始化过程中发生错误,关闭网络连接,触发重连机制
                 await self.socket_close()
@@ -692,7 +692,7 @@ class OKExTrader(Websocket, ExchangeGateway):
         # Authorization message received.
         if msg.get("event") == "login":
             if not msg.get("success"):
-                state = State("Websocket connection authorized failed: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
+                state = State(self._platform, self._account, "Websocket connection authorized failed: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
                 logger.error(state, caller=self)
                 SingleTask.run(self.cb.on_state_update_callback, state)
                 return
@@ -705,11 +705,11 @@ class OKExTrader(Websocket, ExchangeGateway):
             self._subscribe_response_count = self._subscribe_response_count + 1 #每来一次订阅响应计数就加一
             count = len(self._account_channel)+len(self._order_channel) #应该要返回的订阅响应数
             if self._subscribe_response_count == count: #所有的订阅都成功了,通知上层接口都准备好了
-                state = State("Environment ready", State.STATE_CODE_READY)
+                state = State(self._platform, self._account, "Environment ready", State.STATE_CODE_READY)
                 SingleTask.run(self.cb.on_state_update_callback, state)
         
         elif msg.get("event") == "error":
-            state = State("Websocket processing failed: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
+            state = State(self._platform, self._account, "Websocket processing failed: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
             SingleTask.run(self.cb.on_state_update_callback, state)
 
         # Order update message received.
@@ -905,7 +905,7 @@ class OKExMarket(Websocket):
         msg = decompress.decompress(raw)
         msg += decompress.flush()
         msg = msg.decode()
-        # logger.debug("msg:", msg, caller=self)
+        logger.debug("msg:", msg, caller=self)
         if msg == "pong":
             return
         msg = json.loads(msg)

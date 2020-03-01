@@ -8,6 +8,8 @@ Author: HJQuant
 Description: Asynchronous driven quantitative trading framework
 """
 
+import time
+
 
 class InfraAPI:
     """ 基础历史行情API
@@ -39,7 +41,7 @@ class InfraAPI:
     def timenow_unix_time():
         """ 获取现在时间距离 Unix新纪元（1970年1月1日）的毫秒数
         """
-        pass
+        return int(time.time() * 1000)
 
     @staticmethod
     def convert_unix_time(dt):

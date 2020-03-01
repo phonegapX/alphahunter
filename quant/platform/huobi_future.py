@@ -343,26 +343,28 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         """Initialize."""
         self.cb = kwargs["cb"]
         state = None
-        if kwargs.get("account") and (not kwargs.get("access_key") or not kwargs.get("secret_key")):
-            state = State("param access_key or secret_key miss")
-        elif not kwargs.get("strategy"):
-            state = State("param strategy miss")
-        elif not kwargs.get("symbols"):
-            state = State("param symbols miss")
-        elif not kwargs.get("platform"):
-            state = State("param platform miss")
-            
+        
+        self._platform = kwargs.get("platform")
+        self._symbols = kwargs.get("symbols")
+        self._strategy = kwargs.get("strategy")
+        self._account = kwargs.get("account")
+        self._access_key = kwargs.get("access_key")
+        self._secret_key = kwargs.get("secret_key")
+
+        if not self._platform:
+            state = State(self._platform, self._account, "param platform miss")
+        elif self._account and (not self._access_key or not self._secret_key):
+            state = State(self._platform, self._account, "param access_key or secret_key miss")
+        elif not self._strategy:
+            state = State(self._platform, self._account, "param strategy miss")
+        elif not self._symbols:
+            state = State(self._platform, self._account, "param symbols miss")
+
         if state:
             logger.error(state, caller=self)
             SingleTask.run(self.cb.on_state_update_callback, state)
             return
 
-        self._account = kwargs.get("account")
-        self._access_key = kwargs.get("access_key")
-        self._secret_key = kwargs.get("secret_key")
-        self._strategy = kwargs["strategy"]
-        self._platform = kwargs["platform"]
-        self._symbols = kwargs["symbols"]
         self._host = "https://api.btcgateway.pro"
         self._wss = "wss://api.btcgateway.pro"
         
@@ -678,7 +680,7 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
             if indicate_type == INDICATE_ORDER and self.cb.on_order_update_callback:
                 success, error = await self.get_orders(symbol)
                 if error:
-                    state = State("get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    state = State(self._platform, self._account, "get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                     SingleTask.run(self.cb.on_state_update_callback, state)
                     return
                 for order in success:
@@ -686,14 +688,14 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
             elif indicate_type == INDICATE_ASSET and self.cb.on_asset_update_callback:
                 success, error = await self.get_assets()
                 if error:
-                    state = State("get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    state = State(self._platform, self._account, "get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                     SingleTask.run(self.cb.on_state_update_callback, state)
                     return
                 SingleTask.run(self.cb.on_asset_update_callback, success)
             elif indicate_type == INDICATE_POSITION and self.cb.on_position_update_callback:
                 success, error = await self.get_position(symbol)
                 if error:
-                    state = State("get_position error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    state = State(self._platform, self._account, "get_position error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                     SingleTask.run(self.cb.on_state_update_callback, state)
                     return
                 SingleTask.run(self.cb.on_position_update_callback, success)
@@ -779,14 +781,14 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
 
     async def auth_callback(self, data):
         if data["err-code"] != 0:
-            state = State("Websocket connection authorized failed: {}".format(data), State.STATE_CODE_GENERAL_ERROR)
+            state = State(self._platform, self._account, "Websocket connection authorized failed: {}".format(data), State.STATE_CODE_GENERAL_ERROR)
             logger.error(state, caller=self)
             SingleTask.run(self.cb.on_state_update_callback, state)
             return
 
         success, error = await self._init_symbol_info()
         if error:
-            state = State("_init_symbol_info error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+            state = State(self._platform, self._account, "_init_symbol_info error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
             SingleTask.run(self.cb.on_state_update_callback, state)
             #初始化过程中发生错误,关闭网络连接,触发重连机制
             await self.socket_close()
@@ -797,7 +799,7 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
             for sym in self._symbols:
                 success, error = await self.get_orders(sym)
                 if error:
-                    state = State("get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    state = State(self._platform, self._account, "get_orders error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                     SingleTask.run(self.cb.on_state_update_callback, state)
                     #初始化过程中发生错误,关闭网络连接,触发重连机制
                     await self.socket_close()
@@ -810,7 +812,7 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
             for sym in self._symbols:
                 success, error = await self.get_position(sym)
                 if error:
-                    state = State("get_position error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                    state = State(self._platform, self._account, "get_position error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                     SingleTask.run(self.cb.on_state_update_callback, state)
                     #初始化过程中发生错误,关闭网络连接,触发重连机制
                     await self.socket_close()
@@ -821,7 +823,7 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         if self.cb.on_asset_update_callback:
             success, error = await self.get_assets()
             if error:
-                state = State("get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+                state = State(self._platform, self._account, "get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
                 SingleTask.run(self.cb.on_state_update_callback, state)
                 #初始化过程中发生错误,关闭网络连接,触发重连机制
                 await self.socket_close()
@@ -862,13 +864,13 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
 
     async def sub_callback(self, data):
         if data["err-code"] != 0:
-            state = State("subscribe {} failed!".format(data["topic"]), State.STATE_CODE_GENERAL_ERROR)
+            state = State(self._platform, self._account, "subscribe {} failed!".format(data["topic"]), State.STATE_CODE_GENERAL_ERROR)
             logger.error(state, caller=self)
             SingleTask.run(self.cb.on_state_update_callback, state)
         else:
             self._subscribe_response_count = self._subscribe_response_count + 1 #每来一次订阅响应计数就加一
             if self._subscribe_response_count == self._subscribe_channel_total: #所有的订阅都成功了,通知上层接口都准备好了
-                state = State("Environment ready", State.STATE_CODE_READY)
+                state = State(self._platform, self._account, "Environment ready", State.STATE_CODE_READY)
                 SingleTask.run(self.cb.on_state_update_callback, state)
 
     async def process_binary(self, raw):
@@ -1199,7 +1201,7 @@ class HuobiFutureMarket(Websocket):
         """
         success, error = await self._init_symbol_info()
         if error:
-            state = State("_init_symbol_info error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+            state = State(self._platform, None, "_init_symbol_info error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
             SingleTask.run(self.cb.on_state_update_callback, state)
             #初始化过程中发生错误,关闭网络连接,触发重连机制
             await self.socket_close()

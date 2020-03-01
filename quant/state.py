@@ -19,9 +19,19 @@ class State:
     STATE_CODE_READY = 6            #策略环境准备好
     STATE_CODE_GENERAL_ERROR = 7    #一般常规错误
 
-    def __init__(self, msg, code = STATE_CODE_PARAM_MISS):
+    def __init__(self, platform, account, msg, code = STATE_CODE_PARAM_MISS):
+        self._platform = platform
+        self._account = account
         self._msg = msg
         self._code = code
+
+    @property
+    def platform(self):
+        return self._platform
+    
+    @property
+    def account(self):
+        return self._account
 
     @property
     def msg(self):
@@ -32,7 +42,7 @@ class State:
         return self._code
 
     def __str__(self):
-        return str(self._msg)
+        return "platform:{} account:{} msg:{}".format(self._platform, self._account, self._msg)
 
     def __repr__(self):
         return str(self)

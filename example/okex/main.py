@@ -75,7 +75,7 @@ class DemoStrategy(Strategy):
     async def on_time(self):
         """ 每秒钟执行一次. 因为是异步并发架构,这个函数执行的时候交易通道链接不一定已经建立好
         """
-        #logger.info("on_time ...", caller=self)
+        logger.info("on_time ...", caller=self)
 
     async def on_state_update_callback(self, state: State, **kwargs):
         """ 状态变化(底层交易所接口,框架等)通知回调函数
@@ -116,7 +116,7 @@ class DemoStrategy(Strategy):
     async def on_kline_update_callback(self, kline: Kline):
         """ 市场K线更新
         """
-        #logger.info("kline:", kline, caller=self)
+        logger.info("kline:", kline, caller=self)
 
     @async_method_locker("DemoStrategy.can_do_open_close_pos_demo.locker", False)
     async def can_do_open_close_pos_demo(self):
@@ -133,7 +133,7 @@ class DemoStrategy(Strategy):
     async def on_orderbook_update_callback(self, orderbook: Orderbook):
         """ 订单薄更新
         """
-        #logger.info("orderbook:", orderbook, caller=self)
+        logger.info("orderbook:", orderbook, caller=self)
         """
         假设策略在本回调函数里面判断开平仓条件,并且条件达到可以进行开平仓的情况下,最好是把接下来的开平仓逻辑单独
         放在一个函数里面,并且加上'不等待类型的锁',比如下面这个函数这样.
@@ -145,12 +145,12 @@ class DemoStrategy(Strategy):
     async def on_trade_update_callback(self, trade: Trade):
         """ 市场最新成交更新
         """
-        #logger.info("trade:", trade, caller=self)
+        logger.info("trade:", trade, caller=self)
 
     async def on_ticker_update_callback(self, ticker: Ticker):
         """ 市场行情tick更新
         """
-        #logger.info("ticker:", ticker, caller=self)
+        logger.info("ticker:", ticker, caller=self)
 
     async def on_order_update_callback(self, order: Order):
         """ 订单状态更新
