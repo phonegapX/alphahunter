@@ -141,12 +141,12 @@ def direction_change(series):
 
 
 def str_2_timestamp(series):
-    data_str = series.get("tradedt") or series.get("dt")
-    d = datetime.datetime.strptime(data_str, "%Y-%m-%d %H:%M:%S.%f")
-    t = d.timetuple()
-    timestamp = int(time.mktime(t)) * 1000 + round(d.microsecond / 1000)
-    # 转换为东八区时间, 并转换为毫秒数
-    timestamp = timestamp + 60 * 60 * 8 * 1000
+    utc_date_str = series.get("tradedt") or series.get("dt")
+    utc_d = datetime.datetime.strptime(utc_date_str, "%Y-%m-%d %H:%M:%S.%f")
+    # 转换为本地(东八区)时间, 加8小时
+    local_d = utc_d + datetime.timedelta(hours=8)
+    t = local_d.timetuple()
+    timestamp = int(time.mktime(t)) * 1000 + round(local_d.microsecond / 1000)
     return timestamp
 
 
