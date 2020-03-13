@@ -23,18 +23,18 @@ from typing import DefaultDict, Deque, List, Dict, Tuple, Optional, Any
 
 from quant.gateway import ExchangeGateway
 from quant.state import State
-from quant.order import Order, Fill
+from quant.order import Order, Fill, SymbolInfo
 from quant.utils import tools
 from quant.utils import logger
 from quant.tasks import SingleTask
-from quant.position import Position
+from quant.position import Position, MARGIN_MODE_CROSSED
 from quant.const import MARKET_TYPE_KLINE, INDICATE_ORDER, INDICATE_ASSET, INDICATE_POSITION
 from quant.asset import Asset
 from quant.utils.websocket import Websocket
 from quant.utils.http_client import AsyncHttpRequests
 from quant.utils.decorator import async_method_locker
 from quant.order import ORDER_ACTION_BUY, ORDER_ACTION_SELL
-from quant.order import ORDER_TYPE_LIMIT, ORDER_TYPE_MARKET
+from quant.order import ORDER_TYPE_LIMIT, ORDER_TYPE_MARKET, ORDER_TYPE_IOC
 from quant.order import ORDER_STATUS_SUBMITTED, ORDER_STATUS_PARTIAL_FILLED, ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED, ORDER_STATUS_FAILED, ORDER_STATUS_NONE
 from quant.order import TRADE_TYPE_BUY_OPEN, TRADE_TYPE_SELL_OPEN, TRADE_TYPE_BUY_CLOSE, TRADE_TYPE_SELL_CLOSE
 from quant.order import LIQUIDITY_TYPE_MAKER, LIQUIDITY_TYPE_TAKER
@@ -155,6 +155,21 @@ class HuobiFutureRestAPI:
         body = {}
         if symbol:
             body["symbol"] = symbol
+        success, error = await self.request("POST", uri, body=body, auth=True)
+        return success, error
+    
+    async def get_asset_position(self, symbol):
+        """ Get asset and position information.
+
+        Args:
+            symbol: Currency name, e.g. BTC.
+
+        Returns:
+            success: Success results, otherwise it's None.
+            error: Error information, otherwise it's None.
+        """
+        uri = "/api/v1/contract_account_position_info"
+        body = {"symbol": symbol}
         success, error = await self.request("POST", uri, body=body, auth=True)
         return success, error
 
@@ -310,7 +325,7 @@ class HuobiFutureRestAPI:
             headers["Accept"] = "application/json"
             headers["Content-type"] = "application/json"
             headers["User-Agent"] = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:53.0) Gecko/20100101 Firefox/53.0"
-        _, success, error = await AsyncHttpRequests.fetch(method, url, params=params, data=body, headers=headers, timeout=10)
+        _, success, error = await AsyncHttpRequests.fetch(method, url, params=params, data=json.dumps(body), headers=headers, timeout=10)
         if error:
             return None, error
         if not isinstance(success, dict):
@@ -376,11 +391,13 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         self._rest_api = HuobiFutureRestAPI(self._host, self._access_key, self._secret_key)
         
         self._syminfo:DefaultDict[str: Dict[str, Any]] = defaultdict(dict)
+        
+        self._position:DefaultDict[str: Position] = defaultdict(lambda:None)
 
         #e.g. {"BTC": {"free": 1.1, "locked": 2.2, "total": 3.3}, ... }
         self._assets: DefaultDict[str: Dict[str, float]] = defaultdict(lambda: {k: 0.0 for k in {'free', 'locked', 'total'}})
 
-        self._fills: DefaultDict[str, DefaultDict[str, DefaultDict[str, Fill]]] = defaultdict(lambda:defaultdict(lambda:defaultdict(None))) #三级字典
+        self._fills: DefaultDict[str, DefaultDict[str, DefaultDict[str, Fill]]] = defaultdict(lambda:defaultdict(lambda:defaultdict(lambda:None))) #三级字典
 
         if self._account != None:
             self.initialize()
@@ -401,7 +418,7 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
             action: Trade direction, BUY or SELL.
             price: Price of each contract.
             quantity: The buying or selling quantity.
-            order_type: Order type, LIMIT or MARKET.
+            order_type: Order type, LIMIT or MARKET or IOC.
             kwargs:
                 lever_rate: Leverage rate, 10 or 20.
 
@@ -435,7 +452,9 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         if order_type == ORDER_TYPE_LIMIT:
             order_price_type = "limit"
         elif order_type == ORDER_TYPE_MARKET:
-            order_price_type = "opponent"
+            order_price_type = "optimal_20_ioc" #用最优二十档ioc单来模拟市价单
+        elif order_type == ORDER_TYPE_IOC:
+            order_price_type = "ioc"
         else:
             return None, "order type error"
 
@@ -492,8 +511,8 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
                 return order_nos[0], e
             if s["status"] != "ok":
                 return order_nos[0], s
-            if s["errors"]:
-                return order_nos[0], s["errors"][0]
+            if s["data"]["errors"]:
+                return order_nos[0], s["data"]["errors"][0]["err_msg"]
             return order_nos[0], None
         elif len(order_nos) == 0 or len(order_nos) > 1: #删除多个或者全部订单情况下的返回格式
             if e:
@@ -501,11 +520,9 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
             if s["status"] != "ok":
                 return [], s
             result = []
-            if s["successes"]:
-                success = s["successes"]
-                for x in success.split(","):
-                    result.append((x, None))
-            for x in s["errors"]:
+            for x in [o for o in s["data"]["successes"].split(",") if o]:
+                result.append((x, None))
+            for x in s["data"]["errors"]:
                 result.append((x["order_id"], x["err_msg"]))
             return result, None
 
@@ -589,7 +606,7 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         if success["status"] != "ok":
             return None, success
         ast = self._convert_asset_format(success)
-        return ast
+        return ast, None
 
     async def get_position(self, symbol):
         """ 获取当前持仓
@@ -604,43 +621,67 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         """
         {
         "status": "ok",
-        "data": [
-          {
+        "data": [{
             "symbol": "BTC",
-            "contract_code": "BTC180914",
-            "contract_type": "this_week",
-            "volume": 1,
-            "available": 0,
-            "frozen": 0.3,
-            "cost_open": 422.78,
-            "cost_hold": 422.78,
-            "profit_unreal": 0.00007096,
-            "profit_rate": 0.07,
-            "profit": 0.97,
-            "position_margin": 3.4,
-            "lever_rate": 10,
-            "direction":"buy",
-            "last_price":7900.17
-           }
-          ],
-          "ts": 158797866555
+            "margin_balance": 0,
+            "margin_position": 0,
+            "margin_frozen": 0,
+            "margin_available": 0,
+            "profit_real": 0,
+            "profit_unreal": 0,
+            "risk_rate": null,
+            "withdraw_available": 0,
+            "liquidation_price": null,
+            "lever_rate": 20,
+            "adjust_factor": 0.13,
+            "margin_static": 1,
+            "positions": [{
+                "symbol": "BTC",
+                "contract_code": "BTC180914",
+                "contract_type": "this_week",
+                "volume": 1,
+                "available": 0,
+                "frozen": 0.3,
+                "cost_open": 422.78,
+                "cost_hold": 422.78,
+                "profit_unreal": 0.00007096,
+                "profit_rate": 0.07,
+                "profit": 0.97,
+                "position_margin": 3.4,
+                "lever_rate": 20,
+                "direction": "buy",
+                "last_price": 7900.17
+            }]
+        }],
+        "ts": 1560147583367
         }
         """
         info = self._syminfo[symbol]
         if not info:
             return None, "Symbol not exist"
         s = info["symbol"]
-        success, error = await self._rest_api.get_position(s)
+        success, error = await self._rest_api.get_asset_position(s)
         if error:
             return None, error
         if success["status"] != "ok":
             return None, success
         utime = success["ts"]
-        for position_info in success["data"]:
-            if position_info["contract_code"] == symbol:
-                pos = self._convert_position_format(position_info, utime)
-                return pos, None
-        return None, "Position not exist"
+        position:DefaultDict[str: Position] = defaultdict(lambda:None)
+        for d in success["data"]:
+            if d["symbol"] == s:
+                for position_info in d["positions"]:
+                    if position_info["contract_code"] == symbol: #因为可以同时持有多空两个方向的仓位,所以同一个符号可能更新两次
+                        self._convert_position_format(symbol, utime, position_info, position)
+                        #设置爆仓价格,火币只有全仓模式,同币种爆仓价格都相同,所以它把值保存在账户信息里面,我们只能从账户字段去取
+                        pos = position[symbol]
+                        if pos.long_quantity > 0: #持有多仓
+                            pos.long_liquid_price = d["liquidation_price"]
+                        if pos.short_quantity > 0: #持有空仓
+                            pos.short_liquid_price = d["liquidation_price"]
+        if position[symbol]:
+            return position[symbol], None
+        else:
+            return Position(self._platform, self._account, self._strategy, symbol), None #没有持仓,返回默认空仓位
 
     async def get_symbol_info(self, symbol):
         """ 获取指定符号相关信息
@@ -806,29 +847,30 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
                     return
                 for order in success:
                     SingleTask.run(self.cb.on_order_update_callback, order)
-
+        
+        #因为火币期货websocket接口订阅持仓和资产后会主动推送初始化值,所以我们没必要主动去获取了,所以下面代码都注释了
         #获取当前持仓
-        if self.cb.on_position_update_callback:
-            for sym in self._symbols:
-                success, error = await self.get_position(sym)
-                if error:
-                    state = State(self._platform, self._account, "get_position error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
-                    SingleTask.run(self.cb.on_state_update_callback, state)
-                    #初始化过程中发生错误,关闭网络连接,触发重连机制
-                    await self.socket_close()
-                    return
-                SingleTask.run(self.cb.on_position_update_callback, success)
+        #if self.cb.on_position_update_callback:
+        #    for sym in self._symbols:
+        #        success, error = await self.get_position(sym)
+        #        if error:
+        #            state = State(self._platform, self._account, "get_position error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+        #            SingleTask.run(self.cb.on_state_update_callback, state)
+        #            #初始化过程中发生错误,关闭网络连接,触发重连机制
+        #            await self.socket_close()
+        #            return
+        #        SingleTask.run(self.cb.on_position_update_callback, success)
 
         #获取当前账户余额
-        if self.cb.on_asset_update_callback:
-            success, error = await self.get_assets()
-            if error:
-                state = State(self._platform, self._account, "get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
-                SingleTask.run(self.cb.on_state_update_callback, state)
-                #初始化过程中发生错误,关闭网络连接,触发重连机制
-                await self.socket_close()
-                return
-            SingleTask.run(self.cb.on_asset_update_callback, success)
+        #if self.cb.on_asset_update_callback:
+        #    success, error = await self.get_assets()
+        #    if error:
+        #        state = State(self._platform, self._account, "get_assets error: {}".format(error), State.STATE_CODE_GENERAL_ERROR)
+        #        SingleTask.run(self.cb.on_state_update_callback, state)
+        #        #初始化过程中发生错误,关闭网络连接,触发重连机制
+        #        await self.socket_close()
+        #        return
+        #    SingleTask.run(self.cb.on_asset_update_callback, success)
 
         await self._init_sub_channel()
 
@@ -901,8 +943,6 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
 
     def _convert_order_format(self, order_info):
         symbol = order_info["contract_code"]
-        if symbol not in self._symbols:
-            return
         order_no = str(order_info["order_id"])
         if order_info["direction"] == "buy":
             if order_info["offset"] == "open":
@@ -915,22 +955,29 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
             else:
                 trade_type = TRADE_TYPE_SELL_OPEN #卖出开空
         quantity = order_info["volume"]
+        remain = quantity - order_info["trade_volume"]
         state = order_info["status"]
         #(1准备提交 2准备提交 3已提交 4部分成交 5部分成交已撤单 6全部成交 7已撤单 11撤单中)
         if state in [1, 2, 3]:
             status = ORDER_STATUS_SUBMITTED
         elif state == 4:
             status = ORDER_STATUS_PARTIAL_FILLED
-            remain = int(quantity) - int(order_info["trade_volume"])
         elif state == 6:
             status = ORDER_STATUS_FILLED
-            remain = 0
         elif state in [5, 7]:
             status = ORDER_STATUS_CANCELED
-            remain = int(quantity) - int(order_info["trade_volume"])
         else:
             status = ORDER_STATUS_NONE
-        #订单报价类型 "limit":限价 "opponent":对手价 "post_only":只做maker单,post only下单只受用户持仓数量限制
+        #订单报价类型 "limit":限价 "opponent":对手价 "post_only":只做maker单,post only下单只受用户持仓数量限制,optimal_5：最优5档、optimal_10：最优10档、optimal_20：最优20档，ioc:IOC订单，fok：FOK订单, "opponent_ioc"： 对手价-IOC下单，"optimal_5_ioc"：最优5档-IOC下单，"optimal_10_ioc"：最优10档-IOC下单，"optimal_20_ioc"：最优20档-IOC下单,"opponent_fok"： 对手价-FOK下单，"optimal_5_fok"：最优5档-FOK下单，"optimal_10_fok"：最优10档-FOK下单，"optimal_20_fok"：最优20档-FOK下单
+        if order_info["order_price_type"] == "limit":
+            order_type = ORDER_TYPE_LIMIT
+        elif order_info["order_price_type"] == "optimal_20_ioc":
+            order_type = ORDER_TYPE_MARKET
+        elif order_info["order_price_type"] == "ioc":
+            order_type = ORDER_TYPE_IOC
+        else:
+            order_type = ORDER_TYPE_LIMIT #目前平台不支持的订单暂时都归结成限价单类型
+ 
         info = {
             "platform": self._platform,
             "account": self._account,
@@ -940,12 +987,13 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
             "symbol": symbol,
             "price": order_info["price"],
             "quantity": quantity,
+            "remain": remain,
             "status": status,
-            "order_type": ORDER_TYPE_LIMIT if order_info["order_price_type"] in ["limit","post_only"] else ORDER_TYPE_MARKET,
+            "order_type": order_type,
             "trade_type": trade_type,
             "avg_price": order_info["trade_avg_price"],
             "ctime": order_info["created_at"],
-            "utime": order_info["ts"]
+            "utime": order_info["ts"] if order_info.get("ts") else tools.get_cur_timestamp_ms()
         }
         return Order(**info)
 
@@ -1013,8 +1061,8 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
             if not self._fills[symbol][order_no][fill_no]: #保证不会重复通知上层
                 price = t["trade_price"] #成交价格
                 size = t["trade_volume"] #成交数量
-                side = ORDER_ACTION_BUY if order_info["direction"] == "buy" else ORDER_ACTION_SELL   
-                liquidity = LIQUIDITY_TYPE_TAKER if order_info["role"]=="taker" else LIQUIDITY_TYPE_MAKER
+                side = ORDER_ACTION_BUY if order_info["direction"] == "buy" else ORDER_ACTION_SELL
+                liquidity = LIQUIDITY_TYPE_TAKER if t["role"]=="taker" else LIQUIDITY_TYPE_MAKER
                 fee = t["trade_fee"]
                 f = {
                     "platform": self._platform,
@@ -1035,18 +1083,30 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
                 if self.cb.on_fill_update_callback:
                     SingleTask.run(self.cb.on_fill_update_callback, fill)
 
-    def _convert_position_format(self, position_info, utime):
-        symbol = position_info["contract_code"]
-        pos = Position(self._platform, self._account, self._strategy, symbol)
-        if position_info["direction"] == "buy":
-            pos.long_quantity = int(position_info["volume"])
-            pos.long_avg_price = position_info["cost_hold"]
-        else:
-            pos.short_quantity = int(position_info["volume"])
-            pos.short_avg_price = position_info["cost_hold"]
-        #pos.liquid_price = None
+    def _convert_position_format(self, symbol, utime, position_info, position_map):
+        if not position_map[symbol]:
+            position_map[symbol] = Position(self._platform, self._account, self._strategy, symbol)
+            position_map[symbol].margin_mode = MARGIN_MODE_CROSSED #火币只有全仓模式
+        pos = position_map[symbol]
         pos.utime = utime
-        return pos
+        if position_info["direction"] == "buy":
+            pos.long_quantity = position_info["volume"]
+            pos.long_avail_qty = position_info["available"]
+            pos.long_open_price = position_info["cost_open"]
+            pos.long_hold_price = position_info["cost_hold"]
+            pos.long_liquid_price = 0 #火币的这个字段值在资产变动通知里面,不在持仓通知里面
+            pos.long_unrealised_pnl = position_info["profit_unreal"]
+            pos.long_leverage = position_info["lever_rate"]
+            pos.long_margin = position_info["position_margin"]
+        else:
+            pos.short_quantity = position_info["volume"]
+            pos.short_avail_qty = position_info["available"]
+            pos.short_open_price = position_info["cost_open"]
+            pos.short_hold_price = position_info["cost_hold"]
+            pos.short_liquid_price = 0
+            pos.short_unrealised_pnl = position_info["profit_unreal"]
+            pos.short_leverage = position_info["lever_rate"]
+            pos.short_margin = position_info["position_margin"]
 
     def _update_position(self, data):
         """ Position update.
@@ -1082,12 +1142,18 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         }]
         }
         """
+        notified_symbols = []
         utime = data["ts"]
         for position_info in data["data"]:
             symbol = position_info["contract_code"]
             if symbol in self._symbols:
-                pos = self._convert_position_format(position_info, utime)
-                SingleTask.run(self.cb.on_position_update_callback, pos)
+                self._convert_position_format(symbol, utime, position_info, self._position)
+                notified_symbols.append(symbol)
+        #
+        notified_symbols = list(set(notified_symbols)) #去重
+        for s in notified_symbols:
+            pos = self._position[s]
+            SingleTask.run(self.cb.on_position_update_callback, pos)
 
     def _convert_asset_format(self, data):
         for d in data["data"]:
@@ -1100,6 +1166,18 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
                 "free": free,
                 "locked": locked
             }
+            #========================================================
+            #查看此币种下是否有要处理的仓位
+            #火币的爆仓价格是在资产通知里面,所以要在每次资产通知来的时候,填充仓位的爆仓价格
+            for sym in self._symbols:
+                info = self._syminfo[sym]
+                if info and info["symbol"] == symbol and self._position[sym]:
+                    pos = self._position[sym]
+                    if pos.long_quantity > 0:   #存在多仓
+                        pos.long_liquid_price = d["liquidation_price"]
+                    if pos.short_quantity > 0:  #存在空仓
+                        pos.short_liquid_price = d["liquidation_price"]
+            #========================================================
         timestamp = data["ts"]
         ast = Asset(self._platform, self._account, self._assets, timestamp, True)
         return ast
@@ -1138,6 +1216,12 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         """
         ast = self._convert_asset_format(data)
         SingleTask.run(self.cb.on_asset_update_callback, ast)
+        #因为账户资产通知同时会更新相应持仓的爆仓价格,所以把相应持仓也重新通知上层策略
+        for sym in self._symbols:
+            pos = self._position[sym]
+            if pos and (pos.long_quantity > 0 or pos.short_quantity > 0):
+                if self._syminfo[sym]["symbol"] in [d["symbol"] for d in data["data"]]:
+                    SingleTask.run(self.cb.on_position_update_callback, pos)
 
 
 class HuobiFutureMarket(Websocket):

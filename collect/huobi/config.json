@@ -5,6 +5,14 @@
         "username": "guest",
         "password": "guest"
     },
+    "LOG": {
+        "console": true,
+        "level": "WARN",
+        "path": "C:/Users/Administrator/Desktop/log",
+        "name": "quant_huobi_collect.log",
+        "clear": false,
+        "backup_count": 5
+    },
     "PLATFORMS": [
         {
             "platform": "huobi"
@@ -13,9 +21,9 @@
     "MARKETS": {
         "huobi": {
             "symbols": [
-                "eoseth",
-                "trxeth",
-                "ethusdt"
+                "btcusdt",
+                "ethusdt",
+                "eosusdt"
             ]
         }
     },

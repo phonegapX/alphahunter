@@ -25,9 +25,9 @@ from quant.gateway import ExchangeGateway
 from quant.state import State
 from quant.order import Order, Fill, SymbolInfo
 from quant.tasks import SingleTask, LoopRunTask
-from quant.position import Position
+from quant.position import Position, MARGIN_MODE_CROSSED
 from quant.asset import Asset
-from quant.const import MARKET_TYPE_KLINE
+from quant.const import MARKET_TYPE_KLINE, INDICATE_ORDER, INDICATE_ASSET, INDICATE_POSITION
 from quant.utils import tools, logger
 from quant.utils.websocket import Websocket
 from quant.utils.http_client import AsyncHttpRequests
@@ -255,6 +255,7 @@ class FTXTrader(Websocket, ExchangeGateway):
             ot = "limit"
         elif order_type == ORDER_TYPE_MARKET:
             ot = "market"
+            price = None
         else:
             raise NotImplementedError
 
@@ -267,7 +268,7 @@ class FTXTrader(Websocket, ExchangeGateway):
         
         result = success["result"]
         
-        return result["id"], None
+        return str(result["id"]), None
 
     async def revoke_order(self, symbol, *order_nos):
         """ Revoke (an) order(s).
@@ -426,27 +427,58 @@ class FTXTrader(Websocket, ExchangeGateway):
         """
         
         #{"result": [{"collateralUsed": 0.35986, "cost": -1.7984, "entryPrice": 179.84, "estimatedLiquidationPrice": 11184.0123266, "future": "ETH-PERP", "initialMarginRequirement": 0.2, "longOrderSize": 0.0, "maintenanceMarginRequirement": 0.03, "netSize": -0.01, "openSize": 0.01, "realizedPnl": 0.01866927, "recentAverageOpenPrice": 179.84, "recentPnl": -0.0009, "shortOrderSize": 0.0, "side": "sell", "size": 0.01, "unrealizedPnl": -0.0009}], "success": true}
-
         success, error = await self._rest_api.get_positions(True)
         if error:
             return None, error
         if not success["success"]:
             return None, "get_position error"
-        
+
         p = next(filter(lambda x: x['future'] == symbol, success["result"]), None)
         if p == None:
-            return None, "symbol not exist"
+            return Position(self._platform, self._account, self._strategy, symbol), None
         
         if p["netSize"] == 0:
-            return None, "currently no positions"
+            return Position(self._platform, self._account, self._strategy, symbol), None
 
         pos = Position(self._platform, self._account, self._strategy, symbol)
-        if p["netSize"] < 0:
-            #空头仓位
-            pos.update(short_quantity=abs(p["netSize"]), short_avg_price=p["recentAverageOpenPrice"], liquid_price=p["estimatedLiquidationPrice"])
-        else:
-            #多头仓位
-            pos.update(long_quantity=abs(p["netSize"]), long_avg_price=p["recentAverageOpenPrice"], liquid_price=p["estimatedLiquidationPrice"])
+        pos.margin_mode = MARGIN_MODE_CROSSED #ftx只有全仓模式,如果想要逐仓模式的话就用子账户的方式来实现
+        pos.utime = tools.get_cur_timestamp_ms()
+        if p["netSize"] < 0: #空头仓位
+            pos.long_quantity = 0
+            pos.long_avail_qty = 0
+            pos.long_open_price = 0
+            pos.long_hold_price = 0
+            pos.long_liquid_price = 0
+            pos.long_unrealised_pnl = 0
+            pos.long_leverage = 0
+            pos.long_margin = 0
+            #
+            pos.short_quantity = abs(p["netSize"])
+            pos.short_avail_qty = pos.short_quantity-p["longOrderSize"] if p["longOrderSize"]<pos.short_quantity else 0
+            pos.short_open_price = p["recentAverageOpenPrice"]
+            pos.short_hold_price = p["entryPrice"]
+            pos.short_liquid_price = p["estimatedLiquidationPrice"]
+            pos.short_unrealised_pnl = p["unrealizedPnl"]
+            pos.short_leverage = int(1/p["initialMarginRequirement"])
+            pos.short_margin = p["collateralUsed"]
+        else: #多头仓位
+            pos.long_quantity = abs(p["netSize"])
+            pos.long_avail_qty = pos.long_quantity-p["shortOrderSize"] if p["shortOrderSize"]<pos.long_quantity else 0
+            pos.long_open_price = p["recentAverageOpenPrice"]
+            pos.long_hold_price = p["entryPrice"]
+            pos.long_liquid_price = p["estimatedLiquidationPrice"]
+            pos.long_unrealised_pnl = p["unrealizedPnl"]
+            pos.long_leverage = int(1/p["initialMarginRequirement"])
+            pos.long_margin = p["collateralUsed"]
+            #
+            pos.short_quantity = 0
+            pos.short_avail_qty = 0
+            pos.short_open_price = 0
+            pos.short_hold_price = 0
+            pos.short_liquid_price = 0
+            pos.short_unrealised_pnl = 0
+            pos.short_leverage = 0
+            pos.short_margin = 0
 
         return pos, None
 
@@ -567,7 +599,7 @@ class FTXTrader(Websocket, ExchangeGateway):
                 #初始化过程中发生错误,关闭网络连接,触发重连机制
                 await self.socket_close()
                 return
-            for info in success:
+            for info in success["result"]:
                 self._syminfo[info["name"]] = info #符号信息一般不变,获取一次保存好,其他地方要用直接从这个变量获取就可以了
 
             if self.cb.on_order_update_callback != None:
@@ -625,38 +657,34 @@ class FTXTrader(Websocket, ExchangeGateway):
         if not isinstance(msg, dict):
             return
         logger.debug("msg:", json.dumps(msg), caller=self)
-        
         #{"type": "error", "code": 400, "msg": "Invalid login credentials"}
         if msg["type"] == "error":
             state = State(self._platform, self._account, "Websocket connection failed: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
             logger.error(state, caller=self)
             SingleTask.run(self.cb.on_state_update_callback, state)
+        elif msg["type"] == "pong":
             return
-        
-        if msg["type"] == "info" and msg["code"] == 20001:
-            #交易所重启了,我们就断开连接,websocket会自动重连
-            @async_method_locker("FTXTrader._ws_close.locker")
-            async def _ws_close():
-                await self.socket_close()
-            SingleTask.run(_ws_close)
+        elif msg["type"] == "info":
+            if msg["code"] == 20001:
+                #交易所重启了,我们就断开连接,websocket会自动重连
+                @async_method_locker("FTXTrader._ws_close.locker")
+                async def _ws_close():
+                    await self.socket_close()
+                SingleTask.run(_ws_close)
+        elif msg["type"] == "unsubscribed":
             return
-        
         #{'type': 'subscribed', 'channel': 'trades', 'market': 'BTC-PERP'}
-        if msg["type"] == "unsubscribed":
-            return
-        
-        if msg["type"] == "subscribed":
+        elif msg["type"] == "subscribed":
             self._subscribe_response_count = self._subscribe_response_count + 1 #每来一次订阅响应计数就加一
             if self._subscribe_response_count == 2: #所有的订阅都成功了,通知上层接口都准备好了
                 state = State(self._platform, self._account, "Environment ready", State.STATE_CODE_READY)
                 SingleTask.run(self.cb.on_state_update_callback, state)
-            return
-
-        channel = msg['channel']
-        if channel == 'orders':
-            self._update_order(msg)
-        elif channel == 'fills':
-            self._update_fill(msg)
+        elif msg["type"] == "update":
+            channel = msg['channel']
+            if channel == 'orders':
+                self._update_order(msg)
+            elif channel == 'fills':
+                self._update_fill(msg)
 
     def _update_order(self, order_info):
         """ Order update.
@@ -796,36 +824,31 @@ class FTXMarket(Websocket):
         #{"type": "pong"}
         if msg.get("type") == "pong":
             return
-        
         #{"type": "error", "code": 400, "msg": "Invalid login credentials"}
-        if msg["type"] == "error":
+        elif msg["type"] == "error":
             state = State(self._platform, self._account, "Websocket connection failed: {}".format(msg), State.STATE_CODE_GENERAL_ERROR)
             logger.error(state, caller=self)
             SingleTask.run(self.cb.on_state_update_callback, state)
+        elif msg["type"] == "info":
+            if msg["code"] == 20001:
+                #交易所重启了,我们就断开连接,websocket会自动重连
+                @async_method_locker("FTXMarket._ws_close.locker")
+                async def _ws_close():
+                    await self.socket_close()
+                SingleTask.run(_ws_close)
+        elif msg["type"] == "unsubscribed":
             return
-        
-        if msg["type"] == "info" and msg["code"] == 20001:
-            #交易所重启了,我们就断开连接,websocket会自动重连
-            @async_method_locker("FTXMarket._ws_close.locker")
-            async def _ws_close():
-                await self.socket_close()
-            SingleTask.run(_ws_close)
-            return
-        
         #{'type': 'subscribed', 'channel': 'trades', 'market': 'BTC-PERP'}
-        if msg["type"] == "unsubscribed":
+        elif msg["type"] == "subscribed":
             return
-        
-        if msg["type"] == "subscribed":
-            return
-
-        channel = msg['channel']
-        if channel == 'orderbook':
-            self._update_orderbook(msg)
-        elif channel == 'trades':
-            self._update_trades(msg)
-        elif channel == 'ticker':
-            self._update_ticker(msg)
+        elif msg["type"] == "update" or msg["type"] == "partial":
+            channel = msg['channel']
+            if channel == 'orderbook':
+                self._update_orderbook(msg)
+            elif channel == 'trades':
+                self._update_trades(msg)
+            elif channel == 'ticker':
+                self._update_ticker(msg)
 
     def _update_ticker(self, ticker_info):
         """ ticker update.

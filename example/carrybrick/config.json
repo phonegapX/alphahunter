@@ -5,6 +5,14 @@
         "username": "guest",
         "password": "guest"
     },
+    "LOG": {
+        "console": false,
+        "level": "WARN",
+        "path": "C:/Users/Administrator/Desktop/log",
+        "name": "quant.log",
+        "clear": false,
+        "backup_count": 5
+    },
     "PROXY": "http://127.0.0.1:6666",
     "ACCOUNTS": [
         {

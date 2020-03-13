@@ -6,3 +6,4 @@ alphahunter.egg-info
 MANIFEST
 test
 scripts
+/my_strategy/

@@ -41,8 +41,7 @@ class DemoStrategy(Strategy):
         self.account = config.accounts[0]["account"]
         self.access_key = config.accounts[0]["access_key"]
         self.secret_key = config.accounts[0]["secret_key"]
-        target = config.markets[self.platform]
-        self.symbols = target["symbols"]
+        self.symbols = config.markets[self.platform]["symbols"]
         # 交易模块参数
         params = {
             "strategy": self.strategy,
@@ -66,26 +65,25 @@ class DemoStrategy(Strategy):
             "direct_trade_update": False,
             "direct_ticker_update": False
         }
-        #self.trader = self.create_gateway(**params)
+        self.gw = self.create_gateway(**params)
         
         #=====================================================
         #创建第二个交易接口
-        self.platform1 = config.accounts[1]["platform"]
-        self.account1 = config.accounts[1]["account"]
-        self.access_key1 = config.accounts[1]["access_key"]
-        self.secret_key1 = config.accounts[1]["secret_key"]
-        self.subaccount_name1 = config.accounts[1]["subaccount_name"]
-        target = config.markets[self.platform1]
-        self.symbols1 = target["symbols"]
+        self.platform2 = config.accounts[1]["platform"]
+        self.account2 = config.accounts[1]["account"]
+        self.access_key2 = config.accounts[1]["access_key"]
+        self.secret_key2 = config.accounts[1]["secret_key"]
+        self.subaccount_name2 = config.accounts[1]["subaccount_name"]
+        self.symbols2 = config.markets[self.platform2]["symbols"]
         # 交易模块参数
-        params1 = {
+        params2 = {
             "strategy": self.strategy,
-            "platform": self.platform1,
-            "symbols": self.symbols1,
-            "account": self.account1,
-            "access_key": self.access_key1,
-            "secret_key": self.secret_key1,
-            "subaccount_name": self.subaccount_name1,
+            "platform": self.platform2,
+            "symbols": self.symbols2,
+            "account": self.account2,
+            "access_key": self.access_key2,
+            "secret_key": self.secret_key2,
+            "subaccount_name": self.subaccount_name2,
 
             "enable_kline_update": True,
             "enable_orderbook_update": True,
@@ -101,35 +99,52 @@ class DemoStrategy(Strategy):
             "direct_trade_update": False,
             "direct_ticker_update": False
         }
-        self.trader1 = self.create_gateway(**params1)
+        #self.gw2 = self.create_gateway(**params2)
 
         # 注册定时器
         self.enable_timer()  # 每隔1秒执行一次回调
 
     async def on_time(self):
         """ 每秒钟执行一次. 因为是异步并发架构,这个函数执行的时候交易通道链接不一定已经建立好
-        """
-        if not hasattr(self, "just_once"):
-            self.just_once = 1
-            #xx = self.get_orders(self.trader, "ETH-PERP")
-            xx = self.get_position(self.trader1, "ETH-PERP")
-            #xx = self.get_assets(self.trader)
-            #xx = self.create_order(self.trader1, "ETH-PERP", ORDER_ACTION_SELL, "51", "-0.002")
-            #xx = self.create_order(self.trader1, "ETH-PERP", ORDER_ACTION_SELL, "0", "-0.002", ORDER_TYPE_MARKET)
-            #xx = self.revoke_order(self.trader, "ETH-PERP", "1017521392")
-            #order1 = Strategy.TOrder(self.trader, "ETH-PERP", ORDER_ACTION_SELL, "351", "-0.02")
-            #order2 = Strategy.TOrder(self.trader1, "ETH-PERP", ORDER_ACTION_SELL, "352", "-0.03")
-            #xx = self.create_pair_order(order1, order2)
-            #xx = self.get_symbol_info(self.trader, "ETH-PERP")
-            yy, zz = await xx
-        
+        """        
         logger.info("on_time ...", caller=self)
-        #new_price = tools.float_to_str(price)  # 将价格转换为字符串，保持精度
 
     async def on_state_update_callback(self, state: State, **kwargs):
         """ 状态变化(底层交易所接口,框架等)通知回调函数
         """
         logger.info("on_state_update_callback:", state, caller=self)
+        
+        if state.code == State.STATE_CODE_READY: #收到此状态通知,证明底层环境一切准备就绪,策略可以开始工作
+            #s, e = await self.get_orders(self.gw, "ETH-0327")
+            #s, e = await self.get_position(self.gw, "ETH-0327")
+            #s, e = await self.get_assets(self.gw)
+            #s, e = await self.create_order(self.gw, "ETH-0327", ORDER_ACTION_SELL, 161, 0.001)
+            #s, e = await self.create_order(self.gw, "ETH-0327", ORDER_ACTION_BUY, 0, 0.001, ORDER_TYPE_MARKET)
+            #s, e = await self.create_order(self.gw, "ETH-0327", ORDER_ACTION_SELL, 0, 0.002, ORDER_TYPE_MARKET)
+            #s, e = await self.create_order(self.gw, "ETH/USD", ORDER_ACTION_BUY, 0, 0.025, ORDER_TYPE_MARKET)
+            #s, e = await self.create_order(self.gw, "ETH/USD", ORDER_ACTION_SELL, 0, 0.025, ORDER_TYPE_MARKET)
+            #s, e = await self.revoke_order(self.gw, "ETH-PERP", "1017521392")
+            #order1 = Strategy.TOrder(self.gw, "ETH-PERP", ORDER_ACTION_SELL, "351", "0.02")
+            #order2 = Strategy.TOrder(self.gw2, "ETH-PERP", ORDER_ACTION_SELL, "352", "0.03")
+            #s, e = await self.create_pair_order(order1, order2)
+            s, e = await self.get_symbol_info(self.gw, "ETH-PERP")
+            #s, e = await self.invalid_indicate(self.gw, "ETH-PERP", const.INDICATE_ASSET)
+            #s, e = await self.invalid_indicate(self.gw, "ETH-PERP", const.INDICATE_ORDER)
+            #s, e = await self.invalid_indicate(self.gw, "ETH-PERP", const.INDICATE_POSITION)
+
+        elif state.code == State.STATE_CODE_CONNECT_SUCCESS:    #交易接口连接成功
+            pass #仅仅是通知一下,实际策略可以不用过于关注此状态
+        elif state.code == State.STATE_CODE_CONNECT_FAILED:     #交易接口连接失败
+            pass #不需要过于关注此状态,因为底层接口会自动重新连接
+        elif state.code == State.STATE_CODE_DISCONNECT:         #交易接口连接断开
+            pass #不需要过于关注此状态,因为底层接口会自动重新连接
+        elif state.code == State.STATE_CODE_RECONNECTING:       #交易接口重新连接中
+            pass #比如说可以记录重连次数,如果一段时间内一直在重连可能交易所出问题,可以酌情处理,如结束本策略进程等
+        elif state.code == State.STATE_CODE_PARAM_MISS:         #初始化过程缺少参数
+            pass #收到此状态通知,证明无法正常初始化,应该结束本策略进程
+        elif state.code == State.STATE_CODE_GENERAL_ERROR:      #常规错误
+            ... #策略进程运行过程中如果收到某些错误通知,可以根据实际情况判断,比如可以做一些策略善后工作,然后结束本策略进程
+            return
 
     async def on_kline_update_callback(self, kline: Kline):
         """ 市场K线更新

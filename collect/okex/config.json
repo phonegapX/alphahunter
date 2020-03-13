@@ -6,6 +6,14 @@
         "password": "guest"
     },
     "PROXY": "http://127.0.0.1:6666",
+    "LOG": {
+        "console": true,
+        "level": "WARN",
+        "path": "C:/Users/Administrator/Desktop/log",
+        "name": "quant_okex_collect.log",
+        "clear": false,
+        "backup_count": 5
+    },
     "PLATFORMS": [
         {
             "platform": "okex"
@@ -15,7 +23,8 @@
         "okex": {
             "symbols": [
                 "BTC-USDT",
-                "ETH-USDT"
+                "ETH-USDT",
+                "EOS-USDT"
             ]
         }
     },

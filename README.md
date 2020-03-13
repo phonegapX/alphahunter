@@ -106,7 +106,7 @@ alphahunter量化全流程如下:
     - [FTX](example/ftx)
     - [火币现货](example/huobi)
     - [火币期货](example/huobi_future)
-    - [OKEX] 正在接入中
+    - [OKEX现货](example/okex)
     - To be continued ...
 
 - 文档
