@@ -44,7 +44,7 @@ class MongoDB(object):
             host: Host for MongoDB server.
             port: Port for MongoDB server.
             username: Username for MongoDB server.
-            password: Username for MongoDB server.
+            password: Password for MongoDB server.
             dbname: DB name to connect for, default is `db_market`.
         """
         if username and password:
@@ -140,7 +140,7 @@ class MongoDB(object):
         datas = []
         result = cursor.find(spec, fields, sort=sort, skip=skip, limit=limit)
         async for item in result:
-            item["_id"] = str(item["_id"])
+            #item["_id"] = str(item["_id"])
             datas.append(item)
         return datas, None
 
@@ -195,23 +195,15 @@ class MongoDB(object):
             cursor: DB cursor, default is `self._cursor`.
 
         Return:
-            ret_ids: Document id(s) that already inserted, if insert a dict, `ret_ids` is a id string; if insert a list,
-                `ret_ids` is a id list.
+            Document id(s) that already inserted, if insert a dict, return a id; if insert a list, return a id list.
         """
         if not cursor:
             cursor = self._cursor
         docs_data = copy.deepcopy(docs)
-        ret_ids = []
         is_one = False
-        create_time = tools.get_cur_timestamp_ms()
         if not isinstance(docs_data, list):
             docs_data = [docs_data]
             is_one = True
-        #for doc in docs_data:
-        #    doc["_id"] = ObjectId()
-        #    doc["create_time"] = create_time
-        #    doc["update_time"] = create_time
-        #    ret_ids.append(str(doc["_id"]))
         result = await cursor.insert_many(docs_data)
         if is_one:
             return result.inserted_ids[0], None
@@ -239,9 +231,6 @@ class MongoDB(object):
         spec[DELETE_FLAG] = {"$ne": True}
         if "_id" in spec:
             spec["_id"] = self._convert_id_object(spec["_id"])
-        set_fields = update_fields.get("$set", {})
-        set_fields["update_time"] = tools.get_cur_timestamp_ms()
-        update_fields["$set"] = set_fields
         if not multi:
             result = await cursor.update_one(spec, update_fields, upsert=upsert)
             return result.modified_count, None
@@ -333,13 +322,9 @@ class MongoDB(object):
         spec[DELETE_FLAG] = {"$ne": True}
         if "_id" in spec:
             spec["_id"] = self._convert_id_object(spec["_id"])
-        set_fields = update_fields.get("$set", {})
-        set_fields["update_time"] = tools.get_cur_timestamp_ms()
-        update_fields["$set"] = set_fields
-        result = await cursor.find_one_and_update(spec, update_fields, projection=fields, upsert=upsert,
-                                                  return_document=return_document)
-        if result and "_id" in result:
-            result["_id"] = str(result["_id"])
+        result = await cursor.find_one_and_update(spec, update_fields, projection=fields, upsert=upsert, return_document=return_document)
+        #if result and "_id" in result:
+        #    result["_id"] = str(result["_id"])
         return result, None
 
     @forestall
@@ -360,8 +345,8 @@ class MongoDB(object):
         if "_id" in spec:
             spec["_id"] = self._convert_id_object(spec["_id"])
         result = await cursor.find_one_and_delete(spec, projection=fields)
-        if result and "_id" in result:
-            result["_id"] = str(result["_id"])
+        #if result and "_id" in result:
+        #    result["_id"] = str(result["_id"])
         return result, None
 
     def _convert_id_object(self, origin):
