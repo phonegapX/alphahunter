@@ -5,6 +5,14 @@
         "username": "guest",
         "password": "guest"
     },
+    "LOG": {
+        "console": true,
+        "level": "WARN",
+        "path": "C:/Users/Administrator/Desktop/log",
+        "name": "quant_ftx_collect.log",
+        "clear": false,
+        "backup_count": 5
+    },
     "PLATFORMS": [
         {
             "platform": "ftx"
@@ -14,9 +22,17 @@
         "ftx": {
             "symbols": [
                 "BTC-PERP",
-                "ETH-PERP"
+                "ETH-PERP",
+                "ETH/USD"
             ]
         }
+    },
+    "MONGODB": {
+        "host": "127.0.0.1",
+        "port": 27017,
+        "username": "",
+        "password": "",
+        "dbname": "db_market"
     },
     "strategy": "ftx_collect"
 }

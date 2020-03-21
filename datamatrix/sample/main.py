@@ -24,6 +24,7 @@ from quant.utils.decorator import async_method_locker
 from quant.order import Order, Fill, ORDER_ACTION_BUY, ORDER_ACTION_SELL, ORDER_STATUS_FILLED, ORDER_TYPE_MARKET
 from quant.position import Position
 from quant.asset import Asset
+from quant.startup import default_main
 
 
 class DataMatrixDemo(Strategy):
@@ -100,18 +101,6 @@ class DataMatrixDemo(Strategy):
     async def on_position_update_callback(self, position: Position): ...
     async def on_asset_update_callback(self, asset: Asset): ...
 
-    
-def main():
-    if len(sys.argv) > 1:
-        config_file = sys.argv[1]
-    else:
-        config_file = None
-
-    from quant.quant import quant
-    quant.initialize(config_file)
-    DataMatrixDemo()
-    quant.start()
-
 
 if __name__ == '__main__':
-    main()
+    default_main(DataMatrixDemo)

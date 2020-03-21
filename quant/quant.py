@@ -81,15 +81,15 @@ class Quant:
     def _init_db_instance(self):
         """Initialize db."""
         if config.mongodb:
-            from quant.utils.mongo import initMongodb
-            initMongodb(**config.mongodb)
+            from quant.utils.mongo import MongoDB
+            MongoDB.mongodb_init(**config.mongodb)
 
     def _init_event_center(self):
         """Initialize event center."""
         if config.rabbitmq:
             from quant.event import EventCenter
             self.event_center = EventCenter()
-            self.loop.run_until_complete(self.event_center.connect())
+            self.event_center.initialize()
             config.register_run_time_update()
 
     def _do_heartbeat(self):

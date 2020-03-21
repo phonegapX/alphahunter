@@ -14,43 +14,18 @@ import copy
 import motor.motor_asyncio
 from bson.objectid import ObjectId
 from urllib.parse import quote_plus
+from functools import wraps
 
-from quant.utils import tools
-from quant.utils import logger
-
-
-__all__ = ("initMongodb", "MongoDBBase", )
+from quant.utils import tools, logger
+from quant.tasks import LoopRunTask, SingleTask
 
 
-MONGO_CONN = None
+__all__ = ("MongoDB", )
+
+
 DELETE_FLAG = "delete"  # Delete flag, `True` is deleted, otherwise is not deleted.
 
-
-def initMongodb(host="127.0.0.1", port=27017, username="", password="", dbname="admin"):
-    """ Initialize a connection pool for MongoDB.
-
-    Args:
-        host: Host for MongoDB server.
-        port: Port for MongoDB server.
-        username: Username for MongoDB server.
-        password: Username for MongoDB server.
-        dbname: DB name to connect for, default is `admin`.
-    """
-    if username and password:
-        uri = "mongodb://{username}:{password}@{host}:{port}/{dbname}".format(username=quote_plus(username),
-                                                                              password=quote_plus(password),
-                                                                              host=quote_plus(host),
-                                                                              port=port,
-                                                                              dbname=dbname)
-    else:
-        uri = "mongodb://{host}:{port}/{dbname}".format(host=host, port=port, dbname=dbname)
-    mongo_client = motor.motor_asyncio.AsyncIOMotorClient(uri)
-    global MONGO_CONN
-    MONGO_CONN = mongo_client
-    logger.info("create mongodb connection pool.")
-
-
-class MongoDBBase(object):
+class MongoDB(object):
     """ Create a MongoDB connection cursor.
 
     Args:
@@ -58,12 +33,51 @@ class MongoDBBase(object):
         collection: Collection name.
     """
 
+    _mongo_client = None
+    _connected = False
+
+    @classmethod
+    def mongodb_init(cls, host="127.0.0.1", port=27017, username="", password="", dbname="db_market"):
+        """ Initialize a connection pool for MongoDB.
+    
+        Args:
+            host: Host for MongoDB server.
+            port: Port for MongoDB server.
+            username: Username for MongoDB server.
+            password: Username for MongoDB server.
+            dbname: DB name to connect for, default is `db_market`.
+        """
+        if username and password:
+            uri = "mongodb://{username}:{password}@{host}:{port}/{dbname}".format(username=quote_plus(username),
+                                                                                  password=quote_plus(password),
+                                                                                  host=quote_plus(host),
+                                                                                  port=port,
+                                                                                  dbname=dbname)
+        else:
+            uri = "mongodb://{host}:{port}/{dbname}".format(host=host, port=port, dbname=dbname)
+        cls._mongo_client = motor.motor_asyncio.AsyncIOMotorClient(uri, connectTimeoutMS=5000, serverSelectionTimeoutMS=5000)
+        #LoopRunTask.register(cls._check_connection, 2)
+        SingleTask.call_later(cls._check_connection, 2) #模拟串行定时器,避免并发
+        logger.info("create mongodb connection pool.")
+
+    @classmethod
+    async def _check_connection(cls, *args, **kwargs):
+        try:
+            await cls._mongo_client.list_database_names()
+            cls._connected = True
+        except Exception as e:
+            cls._connected = False
+            logger.error("mongodb connection ERROR:", e)
+        finally:
+            SingleTask.call_later(cls._check_connection, 2) #开启下一轮检测
+
     def __init__(self, db, collection):
         """ Initialize. """
+        if self._mongo_client == None:
+            raise Exception("mongo_client is None")
         self._db = db
         self._collection = collection
-        self._conn = MONGO_CONN
-        self._cursor = self._conn[db][collection]
+        self._cursor = self._mongo_client[db][collection]
 
     def new_cursor(self, db, collection):
         """ Generate a new cursor.
@@ -75,9 +89,26 @@ class MongoDBBase(object):
         Return:
             cursor: New cursor.
         """
-        cursor = self._conn[db][collection]
+        if self._mongo_client == None:
+            raise Exception("mongo_client is None")
+        cursor = self._mongo_client[db][collection]
         return cursor
 
+    def forestall(fn):
+        """
+        装饰器函数
+        """
+        @wraps(fn)
+        async def wrap(self, *args, **kwargs):
+            if not self._connected:
+                return None, Exception("mongodb connection lost")
+            try:
+                return await fn(self, *args, **kwargs)
+            except Exception as e:
+                return None, e
+        return wrap
+
+    @forestall
     async def get_list(self, spec=None, fields=None, sort=None, skip=0, limit=9999, cursor=None):
         """ Get multiple document list.
 
@@ -111,8 +142,9 @@ class MongoDBBase(object):
         async for item in result:
             item["_id"] = str(item["_id"])
             datas.append(item)
-        return datas
+        return datas, None
 
+    @forestall
     async def find_one(self, spec=None, fields=None, sort=None, cursor=None):
         """ Get one document.
 
@@ -129,10 +161,11 @@ class MongoDBBase(object):
         """
         data = await self.get_list(spec, fields, sort, limit=1, cursor=cursor)
         if data:
-            return data[0]
+            return data[0], None
         else:
-            return None
+            return None, None
 
+    @forestall
     async def count(self, spec=None, cursor=None):
         """ Counts the number of documents referenced by a cursor.
 
@@ -151,8 +184,9 @@ class MongoDBBase(object):
             spec = {}
         spec[DELETE_FLAG] = {"$ne": True}
         n = await cursor.count_documents(spec)
-        return n
+        return n, None
 
+    @forestall
     async def insert(self, docs, cursor=None):
         """ Insert (a) document(s).
 
@@ -173,17 +207,18 @@ class MongoDBBase(object):
         if not isinstance(docs_data, list):
             docs_data = [docs_data]
             is_one = True
-        for doc in docs_data:
-            doc["_id"] = ObjectId()
-            doc["create_time"] = create_time
-            doc["update_time"] = create_time
-            ret_ids.append(str(doc["_id"]))
-        cursor.insert_many(docs_data)
+        #for doc in docs_data:
+        #    doc["_id"] = ObjectId()
+        #    doc["create_time"] = create_time
+        #    doc["update_time"] = create_time
+        #    ret_ids.append(str(doc["_id"]))
+        result = await cursor.insert_many(docs_data)
         if is_one:
-            return ret_ids[0]
+            return result.inserted_ids[0], None
         else:
-            return ret_ids
+            return result.inserted_ids, None
 
+    @forestall
     async def update(self, spec, update_fields, upsert=False, multi=False, cursor=None):
         """ Update (a) document(s).
 
@@ -209,11 +244,12 @@ class MongoDBBase(object):
         update_fields["$set"] = set_fields
         if not multi:
             result = await cursor.update_one(spec, update_fields, upsert=upsert)
-            return result.modified_count
+            return result.modified_count, None
         else:
             result = await cursor.update_many(spec, update_fields, upsert=upsert)
-            return result.modified_count
+            return result.modified_count, None
 
+    @forestall
     async def delete(self, spec, cursor=None):
         """ Soft delete (a) document(s).
 
@@ -231,8 +267,9 @@ class MongoDBBase(object):
             spec["_id"] = self._convert_id_object(spec["_id"])
         update_fields = {"$set": {DELETE_FLAG: True}}
         delete_count = await self.update(spec, update_fields, multi=True, cursor=cursor)
-        return delete_count
+        return delete_count, None
 
+    @forestall
     async def remove(self, spec, multi=False, cursor=None):
         """ delete (a) document(s) perpetually.
 
@@ -248,11 +285,12 @@ class MongoDBBase(object):
             cursor = self._cursor
         if not multi:
             result = await cursor.delete_one(spec)
-            return result.deleted_count
+            return result.deleted_count, None
         else:
             result = await cursor.delete_many(spec)
-            return result.deleted_count
+            return result.deleted_count, None
 
+    @forestall
     async def distinct(self, key, spec=None, cursor=None):
         """ Distinct query.
 
@@ -273,10 +311,10 @@ class MongoDBBase(object):
         if "_id" in spec:
             spec["_id"] = self._convert_id_object(spec["_id"])
         result = await cursor.distinct(key, spec)
-        return result
+        return result, None
 
-    async def find_one_and_update(self, spec, update_fields, upsert=False, return_document=False, fields=None,
-                                  cursor=None):
+    @forestall
+    async def find_one_and_update(self, spec, update_fields, upsert=False, return_document=False, fields=None, cursor=None):
         """ Find a document and update this document.
 
         Args:
@@ -302,8 +340,9 @@ class MongoDBBase(object):
                                                   return_document=return_document)
         if result and "_id" in result:
             result["_id"] = str(result["_id"])
-        return result
+        return result, None
 
+    @forestall
     async def find_one_and_delete(self, spec, fields=None, cursor=None):
         """ Find a document and soft-delete this document.
 
@@ -323,7 +362,7 @@ class MongoDBBase(object):
         result = await cursor.find_one_and_delete(spec, projection=fields)
         if result and "_id" in result:
             result["_id"] = str(result["_id"])
-        return result
+        return result, None
 
     def _convert_id_object(self, origin):
         """ Convert a string id to `ObjectId`.

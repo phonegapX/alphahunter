@@ -25,6 +25,7 @@ from quant.trader import Trader
 from quant.strategy import Strategy
 from quant.utils.decorator import async_method_locker
 from quant.interface.model_api import ModelAPI
+from quant.startup import default_main
 
 
 class CarryBrickStrategy(Strategy):
@@ -490,20 +491,5 @@ class CarryBrickStrategy(Strategy):
     async def on_position_update_callback(self, position: Position): ...
 
 
-def main():
-    if len(sys.argv) <= 1:
-        logger.error("config.json miss")
-        return
-    config_file = sys.argv[1]
-    if not config_file.lower().endswith("config.json"):
-        logger.error("config.json miss")
-        return
-
-    from quant.quant import quant
-    quant.initialize(config_file)
-    CarryBrickStrategy()
-    quant.start()
-
-
 if __name__ == '__main__':
-    main()
+    default_main(CarryBrickStrategy)

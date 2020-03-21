@@ -117,8 +117,7 @@ class Event:
         await self._callback(o)
 
     def __str__(self):
-        info = "EVENT: name={n}, exchange={e}, queue={q}, routing_key={r}, data={d}".format(
-            e=self.exchange, q=self.queue, r=self.routing_key, n=self.name, d=self.data)
+        info = "EVENT: name={n}, exchange={e}, queue={q}, routing_key={r}, data={d}".format(e=self.exchange, q=self.queue, r=self.routing_key, n=self.name, d=self.data)
         return info
 
     def __repr__(self):
@@ -378,8 +377,8 @@ class EventTrade(Event):
         platform: Exchange platform name, e.g. bitmex.
         symbol: Trading pair, e.g. BTC/USD.
         action: Trading side, BUY or SELL.
-        price: Order price.
-        quantity: Order size.
+        price: Trade price.
+        quantity: Trade size.
         timestamp: Publish time, millisecond.
 
     * NOTE:
@@ -481,8 +480,7 @@ class EventCenter:
             callback: Asynchronous callback.
             multi: If subscribe multiple channel(routing_key) ?
         """
-        logger.info("NAME:", event.name, "EXCHANGE:", event.exchange, "QUEUE:", event.queue, "ROUTING_KEY:",
-                    event.routing_key, caller=self)
+        logger.info("NAME:", event.name, "EXCHANGE:", event.exchange, "QUEUE:", event.queue, "ROUTING_KEY:", event.routing_key, caller=self)
         self._subscribers.append((event, callback, multi))
 
     async def publish(self, event):
@@ -495,7 +493,10 @@ class EventCenter:
             logger.warn("RabbitMQ not ready right now!", caller=self)
             return
         data = event.dumps()
-        await self._channel.basic_publish(payload=data, exchange_name=event.exchange, routing_key=event.routing_key)
+        try:
+            await self._channel.basic_publish(payload=data, exchange_name=event.exchange, routing_key=event.routing_key)
+        except Exception as e:
+            logger.error("publish error:", e, caller=self)
 
     async def connect(self, reconnect=False):
         """ Connect to RabbitMQ server and create default exchange.
@@ -509,8 +510,7 @@ class EventCenter:
 
         # Create a connection.
         try:
-            transport, protocol = await aioamqp.connect(host=self._host, port=self._port, login=self._username,
-                                                        password=self._password, login_method="PLAIN")
+            transport, protocol = await aioamqp.connect(host=self._host, port=self._port, login=self._username, password=self._password, login_method="PLAIN")
         except Exception as e:
             logger.error("connection error:", e, caller=self)
             return
@@ -536,20 +536,19 @@ class EventCenter:
             asyncio.get_event_loop().call_later(5, self._bind_and_consume)
 
     def _bind_and_consume(self):
-        async def do_them():
+        async def _call_async():
             for event, callback, multi in self._subscribers:
-                await self._initialize(event, callback, multi)
-        SingleTask.run(do_them)
+                await self._do_subscribe(event, callback, multi)
+        SingleTask.run(_call_async)
 
-    async def _initialize(self, event: Event, callback=None, multi=False):
+    async def _do_subscribe(self, event: Event, callback=None, multi=False):
         if event.queue:
             await self._channel.queue_declare(queue_name=event.queue, auto_delete=True)
             queue_name = event.queue
         else:
             result = await self._channel.queue_declare(exclusive=True)
             queue_name = result["queue"]
-        await self._channel.queue_bind(queue_name=queue_name, exchange_name=event.exchange,
-                                       routing_key=event.routing_key)
+        await self._channel.queue_bind(queue_name=queue_name, exchange_name=event.exchange, routing_key=event.routing_key)
         await self._channel.basic_qos(prefetch_count=event.prefetch_count)
         if callback:
             if multi:
@@ -561,8 +560,7 @@ class EventCenter:
                 self._add_event_handler(event, callback)
 
     async def _on_consume_event_msg(self, channel, body, envelope, properties):
-        # logger.debug("exchange:", envelope.exchange_name, "routing_key:", envelope.routing_key,
-        #              "body:", body, caller=self)
+        #logger.debug("exchange:", envelope.exchange_name, "routing_key:", envelope.routing_key, "body:", body, caller=self)
         try:
             key = "{exchange}:{routing_key}".format(exchange=envelope.exchange_name, routing_key=envelope.routing_key)
             funcs = self._event_handler[key]

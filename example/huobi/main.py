@@ -25,6 +25,7 @@ from quant.gateway import ExchangeGateway
 from quant.trader import Trader
 from quant.strategy import Strategy
 from quant.utils.decorator import async_method_locker
+from quant.startup import default_main
 
 
 class DemoStrategy(Strategy):
@@ -169,21 +170,5 @@ class DemoStrategy(Strategy):
         logger.info("asset:", asset, caller=self)
 
 
-def main():
-    if len(sys.argv) <= 1:
-        logger.error("config.json miss")
-        return
-    config_file = sys.argv[1]
-    #if config_file[-11:].lower() != "config.json":
-    if not config_file.lower().endswith("config.json"):
-        logger.error("config.json miss")
-        return
-    
-    from quant.quant import quant
-    quant.initialize(config_file)
-    DemoStrategy()
-    quant.start()
-
-
 if __name__ == '__main__':
-    main()
+    default_main(DemoStrategy)

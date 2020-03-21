@@ -5,6 +5,14 @@
         "username": "guest",
         "password": "guest"
     },
+    "LOG": {
+        "console": true,
+        "level": "WARN",
+        "path": "C:/Users/Administrator/Desktop/log",
+        "name": "quant_huobi_future_collect.log",
+        "clear": false,
+        "backup_count": 5
+    },
     "PLATFORMS": [
         {
             "platform": "huobi_future"
@@ -13,10 +21,20 @@
     "MARKETS": {
         "huobi_future": {
             "symbols": [
-                "BTC200327",
-                "ETH200327"
+                "BTC200626",
+                "ETH200626",
+                "EOS200626",
+                "LTC200626",
+                "BCH200626"
             ]
         }
+    },
+    "MONGODB": {
+        "host": "127.0.0.1",
+        "port": 27017,
+        "username": "",
+        "password": "",
+        "dbname": "db_market"
     },
     "strategy": "huobi_future_collect"
 }
