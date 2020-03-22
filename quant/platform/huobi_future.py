@@ -1372,13 +1372,14 @@ class HuobiFutureMarket(Websocket):
                 direction = t.get("direction")
                 price = t.get("price")
                 quantity = t.get("amount")
+                ts = t.get("ts")
                 info = {
                     "platform": self._platform,
                     "symbol": symbol,
                     "action": ORDER_ACTION_BUY if direction == "buy" else ORDER_ACTION_SELL,
                     "price": price,
                     "quantity": quantity,
-                    "timestamp": tick.get("ts")
+                    "timestamp": ts
                 }
                 trade = Trade(**info)
                 SingleTask.run(self.cb.on_trade_update_callback, trade)

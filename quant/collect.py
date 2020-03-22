@@ -63,6 +63,8 @@ class Collect(Strategy):
         self.t_orderbook_map = defaultdict(lambda:None)
         self.t_trade_map = defaultdict(lambda:None)
         self.t_kline_map = defaultdict(lambda:None)
+        self.d_orderbook_map = defaultdict(lambda:[])
+        self.d_trade_map = defaultdict(lambda:[])
         if config.mongodb:
             for sym in self.symbols:
                 #订单薄
@@ -133,9 +135,19 @@ class Collect(Strategy):
             if i > 20: break
         kwargs["dt"] = orderbook.timestamp
         async def save(kwargs):
-            t_orderbook = self.t_orderbook_map[orderbook.symbol]
-            if t_orderbook:
-                s, e = await t_orderbook.insert(kwargs)
+            #一秒内会有多次通知,将一秒内的通知都收集在一起,一次性写入数据库,约一秒写一次,提高数据库性能
+            dlist = self.d_orderbook_map[orderbook.symbol]
+            dlist.append(kwargs)
+            if dlist[len(dlist)-1]["dt"]-dlist[0]["dt"] > 1000: #每秒写一次数据库
+                #因为是异步并发,所以先清空列表,重新收集新的一秒内的所有通知,而不是等待数据库IO完成再清空(python的变量只是对象的引用)
+                #xxx = copy.deepcopy(dlist)
+                #dlist.clear()
+                #insert xxx
+                self.d_orderbook_map[orderbook.symbol] = []
+                #写数据库
+                t_orderbook = self.t_orderbook_map[orderbook.symbol]
+                if t_orderbook:
+                    s, e = await t_orderbook.insert(dlist)
         SingleTask.run(save, kwargs)
         #发布行情到消息队列
         kwargs = {
@@ -156,14 +168,23 @@ class Collect(Strategy):
             "direction": trade.action,
             "tradeprice": trade.price,
             "volume": trade.quantity,
-            "amount": trade.quantity*trade.price,
             "tradedt": trade.timestamp,
             "dt": tools.get_cur_timestamp_ms()
         }
         async def save(kwargs):
-            t_trade = self.t_trade_map[trade.symbol]
-            if t_trade:
-                s, e = await t_trade.insert(kwargs)
+            #一秒内会有多次通知,将一秒内的通知都收集在一起,一次性写入数据库,约一秒写一次,提高数据库性能
+            dlist = self.d_trade_map[trade.symbol]
+            dlist.append(kwargs)
+            if dlist[len(dlist)-1]["dt"]-dlist[0]["dt"] > 1000: #每秒写一次数据库
+                #因为是异步并发,所以先清空列表,重新收集新的一秒内的所有通知,而不是等待数据库IO完成再清空(python的变量只是对象的引用)
+                #xxx = copy.deepcopy(dlist)
+                #dlist.clear()
+                #insert xxx
+                self.d_trade_map[trade.symbol] = []
+                #写数据库
+                t_trade = self.t_trade_map[trade.symbol]
+                if t_trade:
+                    s, e = await t_trade.insert(dlist)
         SingleTask.run(save, kwargs)
         #发布行情到消息队列
         kwargs = {

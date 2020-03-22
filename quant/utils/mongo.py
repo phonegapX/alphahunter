@@ -63,8 +63,9 @@ class MongoDB(object):
     @classmethod
     async def _check_connection(cls, *args, **kwargs):
         try:
-            await cls._mongo_client.list_database_names()
-            cls._connected = True
+            ns = await cls._mongo_client.list_database_names()
+            if ns and isinstance(ns, list) and "admin" in ns:
+                cls._connected = True
         except Exception as e:
             cls._connected = False
             logger.error("mongodb connection ERROR:", e)
