@@ -1243,6 +1243,7 @@ class HuobiFutureMarket(Websocket):
         self._s_to_cd = {}  # {"symbol_raw": "Contract code"}
         self._orderbook_length = 20
         self._syminfo:DefaultDict[str: Dict[str, Any]] = defaultdict(dict)
+        self._prev_kline_map = defaultdict(lambda:None)
         self.initialize()
 
     async def _init_symbol_info(self):
@@ -1333,20 +1334,24 @@ class HuobiFutureMarket(Websocket):
         symbol = self._s_to_cd[symbol_raw]
 
         if channel.find("kline") != -1:
-            d = data.get("tick")
-            info = {
-                "platform": self._platform,
-                "symbol": symbol,
-                "open": d["open"],
-                "high": d["high"],
-                "low": d["low"],
-                "close": d["close"],
-                "volume": d["amount"],
-                "timestamp": data.get("ts"),
-                "kline_type": MARKET_TYPE_KLINE
-            }
-            kline = Kline(**info)
-            SingleTask.run(self.cb.on_kline_update_callback, kline)
+            cur_kline = data.get("tick")
+            if self._prev_kline_map[symbol]: #如果存在前一根k线
+                prev_kline = self._prev_kline_map[symbol]
+                if prev_kline["id"] != cur_kline["id"]: #前一根k线的开始时间与当前k线开始时间不同,意味着前一根k线已经统计完毕,通知上层策略
+                    info = {
+                        "platform": self._platform,
+                        "symbol": symbol,
+                        "open": prev_kline["open"],
+                        "high": prev_kline["high"],
+                        "low": prev_kline["low"],
+                        "close": prev_kline["close"],
+                        "volume": prev_kline["vol"],
+                        "timestamp": prev_kline["id"]*1000, #id字段表示以秒为单位的开始时间,转换为毫秒为单位
+                        "kline_type": MARKET_TYPE_KLINE
+                    }
+                    kline = Kline(**info)
+                    SingleTask.run(self.cb.on_kline_update_callback, kline)
+            self._prev_kline_map[symbol] = cur_kline
         elif channel.find("depth") != -1:
             tick = data.get("tick")
             asks = tick.get("asks")[:self._orderbook_length]

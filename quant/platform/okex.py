@@ -866,6 +866,7 @@ class OKExMarket(Websocket):
         self.heartbeat_msg = "ping"
         self._orderbook_length = 20
         self._orderbooks = {}  # 订单薄数据 {"symbol": {"bids": {"price": quantity, ...}, "asks": {...}}}
+        self._prev_kline_map = defaultdict(lambda:None)
         self.initialize()
 
     async def connected_callback(self):
@@ -1001,14 +1002,14 @@ class OKExMarket(Websocket):
             quantity = ob["bids"].get(k)
             bids.append([price, quantity])
 
-        data = {
+        info = {
             "platform": self._platform,
             "symbol": symbol,
             "asks": asks,
             "bids": bids,
             "timestamp": ob["timestamp"]
         }
-        ob = Orderbook(**data)
+        ob = Orderbook(**info)
         SingleTask.run(self.cb.on_orderbook_update_callback, ob)
 
     async def process_trade(self, data):
@@ -1019,8 +1020,7 @@ class OKExMarket(Websocket):
         price = float(data["price"])
         quantity = float(data["size"])
         timestamp = tools.utctime_str_to_mts(data["timestamp"])
-
-        data = {
+        info = {
             "platform": self._platform,
             "symbol": symbol,
             "action": action,
@@ -1028,32 +1028,33 @@ class OKExMarket(Websocket):
             "quantity": quantity,
             "timestamp": timestamp
         }
-        trade = Trade(**data)
+        trade = Trade(**info)
         SingleTask.run(self.cb.on_trade_update_callback, trade)
 
     async def process_kline(self, data):
         symbol = data["instrument_id"]
         if symbol not in self._symbols:
             return
-        timestamp = tools.utctime_str_to_mts(data["candle"][0])
-        _open = float(data["candle"][1])
-        high = float(data["candle"][2])
-        low = float(data["candle"][3])
-        close = float(data["candle"][4])
-        volume = float(data["candle"][5])
-        data = {
-            "platform": self._platform,
-            "symbol": symbol,
-            "open": _open,
-            "high": high,
-            "low": low,
-            "close": close,
-            "volume": volume,
-            "timestamp": timestamp,
-            "kline_type": MARKET_TYPE_KLINE
-        }
-        kline = Kline(**data)
-        SingleTask.run(self.cb.on_kline_update_callback, kline)
+        cur_kline = data["candle"]
+        if self._prev_kline_map[symbol]: #如果存在前一根k线
+            prev_kline = self._prev_kline_map[symbol]
+            prev_timestamp = tools.utctime_str_to_mts(prev_kline[0])
+            cur_timestamp = tools.utctime_str_to_mts(cur_kline[0])
+            if prev_timestamp != cur_timestamp: #前一根k线的开始时间与当前k线开始时间不同,意味着前一根k线已经统计完毕,通知上层策略
+                info = {
+                    "platform": self._platform,
+                    "symbol": symbol,
+                    "open": float(prev_kline[1]),
+                    "high": float(prev_kline[2]),
+                    "low": float(prev_kline[3]),
+                    "close": float(prev_kline[4]),
+                    "volume": float(prev_kline[5]),
+                    "timestamp": prev_timestamp,
+                    "kline_type": MARKET_TYPE_KLINE
+                }
+                kline = Kline(**info)
+                SingleTask.run(self.cb.on_kline_update_callback, kline)
+        self._prev_kline_map[symbol] = cur_kline
 
     async def process_ticker(self, data):
         """
@@ -1078,7 +1079,7 @@ class OKExMarket(Websocket):
         ]
         }
         """
-        p = {
+        info = {
             "platform": self._platform,
             "symbol": data["instrument_id"],
             "ask": float(data["best_ask"]),
@@ -1086,5 +1087,5 @@ class OKExMarket(Websocket):
             "last": float(data["last"]),
             "timestamp": tools.utctime_str_to_mts(data["timestamp"])
         }
-        ticker = Ticker(**p)
+        ticker = Ticker(**info)
         SingleTask.run(self.cb.on_ticker_update_callback, ticker)

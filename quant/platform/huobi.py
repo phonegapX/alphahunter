@@ -1037,6 +1037,7 @@ class HuobiMarket(Websocket):
         super(HuobiMarket, self).__init__(url, send_hb_interval=0, **kwargs)
         #self.heartbeat_msg = "ping"
         self._c_to_s = {}  # {"channel": "symbol"}
+        self._prev_kline_map = defaultdict(lambda:None)
         self.initialize()
 
     async def connected_callback(self):
@@ -1080,20 +1081,24 @@ class HuobiMarket(Websocket):
         symbol = self._c_to_s[channel]
 
         if channel.find("kline") != -1:
-            kline_info = data["tick"]
-            info = {
-                "platform": self._platform,
-                "symbol": symbol,
-                "open": kline_info["open"],
-                "high": kline_info["high"],
-                "low": kline_info["low"],
-                "close": kline_info["close"],
-                "volume": kline_info["amount"],
-                "timestamp": data["ts"],
-                "kline_type": MARKET_TYPE_KLINE
-            }
-            kline = Kline(**info)
-            SingleTask.run(self.cb.on_kline_update_callback, kline)
+            cur_kline = data["tick"]
+            if self._prev_kline_map[symbol]: #如果存在前一根k线
+                prev_kline = self._prev_kline_map[symbol]
+                if prev_kline["id"] != cur_kline["id"]: #前一根k线的开始时间与当前k线开始时间不同,意味着前一根k线已经统计完毕,通知上层策略
+                    info = {
+                        "platform": self._platform,
+                        "symbol": symbol,
+                        "open": prev_kline["open"],
+                        "high": prev_kline["high"],
+                        "low": prev_kline["low"],
+                        "close": prev_kline["close"],
+                        "volume": prev_kline["amount"], #火币现货接口居然用amount表示成交量,vol表示成交额,也是晕了.
+                        "timestamp": prev_kline["id"]*1000, #id字段表示以秒为单位的开始时间,转换为毫秒为单位
+                        "kline_type": MARKET_TYPE_KLINE
+                    }
+                    kline = Kline(**info)
+                    SingleTask.run(self.cb.on_kline_update_callback, kline)
+            self._prev_kline_map[symbol] = cur_kline
         elif channel.find("depth") != -1:
             d = data["tick"]
             asks = d["asks"][:20] #[[price, quantity],....]
