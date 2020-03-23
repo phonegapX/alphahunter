@@ -35,12 +35,16 @@ class Base(object):
         """
         documents = []
         key = self.get_key()
+
         for i in range(begin_timestamp, end_timestamp, self.HALF_MINUTE):
+            end = (i + self.HALF_MINUTE) if i + self.HALF_MINUTE < end_timestamp else end_timestamp
             cursor = self.collection.find(
-                {key: {"$gte": begin_timestamp, "$lt": begin_timestamp + self.HALF_MINUTE}},
+                {key: {"$gte": i, "$lt": end}},
                 {"_id": 0},
-                sort=[(key, 1)])
+                sort=[("dt", 1)]
+            )
             documents.extend(list(cursor))
+
         df = pd.DataFrame(documents)
         return df
 
@@ -90,10 +94,12 @@ class Base(object):
     def get_df(self, key, begin_timestamp, end_timestamp, good=True):
         documents = []
         for i in range(begin_timestamp, end_timestamp, self.HALF_MINUTE):
+            end = (i + self.HALF_MINUTE) if i + self.HALF_MINUTE < end_timestamp else end_timestamp
             cursor = self.collection.find(
-                {key: {"$gte": begin_timestamp, "$lt": begin_timestamp + self.HALF_MINUTE}},
+                {key: {"$gte": i, "$lt": end}},
                 {"_id": 0},
-                sort=[("dt", 1)])
+                sort=[("dt", 1)]
+            )
             documents.extend(list(cursor))
         # 若没有数据, 则跳过
         if not documents:
@@ -246,7 +252,7 @@ if __name__ == '__main__':
 
     trade = Trade(exchange_name="binance", symbol_name="btcusdt")
     df = trade.get_df_from_table(1575158400000, 1575258400000)
-    print(df)
+
     begin_str = "2019-12-01 11:23:56.123"
     end_str = "2019-12-01 14:24:56.123"
     save_path = "./"

@@ -4,8 +4,8 @@ from pymongo import MongoClient
 # MONGO_POOL = MongoClient(host="192.168.1.110",
 MONGO_POOL = MongoClient(host="192.168.0.101",
                          maxPoolSize=10,
-                         socketTimeoutMS=1000,  # warn:单位毫秒
-                         connectTimeoutMS=1000,
+                         socketTimeoutMS=10000,  # warn:单位毫秒
+                         connectTimeoutMS=10000,
                          socketKeepAlive=True,
                          w="majority",
                          j=True,
