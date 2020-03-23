@@ -4,15 +4,18 @@ import shutil
 import pandas
 import time
 import datetime
-import asyncio
+import json
+import logging
+import copy
 
 from zipfile import ZipFile, is_zipfile
 
 from models import Symbol, OrderBook, Trade
 
 
-PATH = "/Volumes/JXD/home/work/data_new"  # 文件存放地址
-LIMIT = 500  # 批量插入条数限制
+PATH = "/home/nijun/Documents/huobi"  # 文件存放地址
+RE_PATH = "/home/nijun/Documents/timeout/re/"
+LIMIT = 1000  # 批量插入条数限制
 
 
 # buy_or_sell 转换
@@ -25,27 +28,69 @@ DIRECTION = {
 EXCHANGE_NAME = {
     "huobipro": "huobi",
 }
+error_log = logging.getLogger("error_log")
+formatter = logging.Formatter("")
+fileHandler = logging.FileHandler("/home/nijun/Documents/timeout/error.log", mode='a')
+fileHandler.setFormatter(formatter)
+error_log.setLevel(logging.ERROR)
+error_log.addHandler(fileHandler)
 
 
 def main():
     zip_paths = get_zips(PATH)
-    loop = asyncio.get_event_loop()
-    tasks = []
+
     for zip_path in zip_paths:
         zip_file = ZipFile(zip_path)
-
         # 如果压缩包里面是以.csv结尾的文件, 则表明已经到最后一层目录
         zip_info_list = zip_file.infolist()
         if zip_info_list and zip_info_list[0].filename.endswith(".csv"):
-            # read_file(zip_file)
-            tasks.append(read_file(zip_file))
+            read_file(zip_file)
         else:
             handler_not_finally_path(zip_file)
+    print("finish", datetime.datetime.now())
 
-    loop.run_until_complete(asyncio.wait(tasks))
+
+def get_zips(dir_path):
+    """
+    获取目录下的所有压缩文件
+    """
+    if is_zipfile(dir_path):
+        return [dir_path]
+    zip_paths = []
+    names = get_names(dir_path)
+    for name in names:
+        next_path = os.path.join(dir_path, name)
+        zip_paths.extend(get_zips(next_path))
+    return zip_paths
 
 
-async def read_file(zip_file):
+def handler_not_finally_path(zip_file):
+    zip_info_list = zip_file.infolist()
+    if zip_info_list and zip_info_list[0].filename.endswith(".csv"):
+        return
+
+    # 解压
+    extra_path = zip_file.filename.strip(".zip")
+    zip_file.extractall(path=extra_path)
+
+    # 捕获异常, 保证清理解压文件
+    try:
+        # 暂时符合目前新旧路径格式, 暂时不写递归, 如果之后出现别的情况, 再
+        zip_paths = get_zips(extra_path)
+        for zip_path in zip_paths:
+            zip_file = ZipFile(zip_path)
+            read_file(zip_file)
+    except Exception as e:
+        # TODO: 发送钉钉提醒, 或者微信提醒
+        logging.error(e)
+    finally:
+        if os.path.exists(extra_path):
+            # 删除文件
+            shutil.rmtree(extra_path)
+            print("*******删除成功*******")
+
+
+def read_file(zip_file):
     file_names = ignore(
         [zip_info.filename for zip_info in zip_file.infolist()])
     for file_name in file_names:
@@ -57,6 +102,7 @@ async def read_file(zip_file):
         focus_symbol = Symbol.is_focus(symbol_name)
         if not focus_symbol:
             continue
+        print(file_name)
 
         # exchange 转换
         exchange_name = file_name_split[0].lower()
@@ -69,24 +115,27 @@ async def read_file(zip_file):
             # 跳过第一行. 第一行为联系信息
             df = pandas.read_csv(f, skiprows=1)
 
-            loop = asyncio.get_running_loop()
             # trade 数据
             if "TICK" in file_name:
-                loop.create_task(handle_trade(exchange_name, symbol_name, df))
+                handle_trade(exchange_name, symbol_name, df)
 
             # order book 数据
             elif "ORDER" in file_name:
-                loop.create_task(handle_order_book(exchange_name, symbol_name, df))
+                handle_order_book(exchange_name, symbol_name, df)
 
 
-async def handle_trade(exchange_name, symbol_name, df):
+def handle_trade(exchange_name, symbol_name, df):
     """
     binance example:
     aggregate_ID  time                    price   amount  buy_or_sell first_trade_ID  last_trade_ID
     1074495       2020-01-04 00:00:01.751 222.38  0.14614    b        1213680          1213680
     """
+    # huobi / binance
+    # df.rename(columns={"exchange_time": "tradedt", "time": "tradedt", "price": "tradeprice", "amount":
+    #                    "volume", "buy_or_sell": "direction"}, inplace=True)
 
-    df.rename(columns={"exchange_time": "tradedt", "time": "tradedt", "price": "tradeprice", "amount":
+    # okex
+    df.rename(columns={"server_time": "tradedt", "time": "tradedt", "price": "tradeprice", "amount":
                        "volume", "buy_or_sell": "direction"}, inplace=True)
 
     df["direction"] = df.apply(direction_change, axis=1)
@@ -101,11 +150,19 @@ async def handle_trade(exchange_name, symbol_name, df):
 
     trade = Trade(exchange_name, symbol_name)
     rows = df.to_dict('records')
+
     for skip in range(0, len(rows), LIMIT):
-        await trade.collection.insert_many(rows[skip: skip + LIMIT])
+        documents = copy.deepcopy(rows[skip: skip + LIMIT])
+        try:
+            trade.collection.insert_many(documents)
+        except Exception as e:
+            error_log.error(e)
+            with open(RE_PATH + trade.collection_name + ".txt", "a") as f:
+                f.write(json.dumps(rows[skip: skip + LIMIT]))
+                f.write("\n")
 
 
-async def handle_order_book(exchange_name, symbol_name, df):
+def handle_order_book(exchange_name, symbol_name, df):
     """
     example
     lastUpdateId	server_time	         	buy_1_price	... buy_20_price    sell_1_price ... sell_20_price    buy_1_amount ... buy_20_amount    sell_1_amount ... sell_20_amount
@@ -131,8 +188,16 @@ async def handle_order_book(exchange_name, symbol_name, df):
 
     order_book = OrderBook(exchange_name, symbol_name)
     rows = df.to_dict('records')
+
     for skip in range(0, len(rows), LIMIT):
-        await order_book.collection.insert_many(rows[skip: skip + LIMIT])
+        documents = copy.deepcopy(rows[skip: skip + LIMIT])
+        try:
+            order_book.collection.insert_many(documents)
+        except Exception as e:
+            error_log.error(e)
+            with open(RE_PATH + order_book.collection_name + ".txt", "a") as f:
+                f.write(json.dumps(rows[skip: skip + LIMIT]))
+                f.write("\n")
 
 
 def direction_change(series):
@@ -166,47 +231,6 @@ def insert_symbol(exchange_name, symbol_name):
     symbol = {"exchange": exchange_name, "name": symbol_name,
               "research_usable": True, "trade_usable": True}
     t_symbol.replace_one(filter=symbol, replacement=symbol, upsert=True)
-
-
-def handler_not_finally_path(zip_file):
-    zip_info_list = zip_file.infolist()
-    if zip_info_list and zip_info_list[0].filename.endswith(".csv"):
-        return
-
-    # 解压
-    extra_path = zip_file.filename.strip(".zip")
-    zip_file.extractall(path=extra_path)
-
-    # 捕获异常, 保证清理解压文件
-    try:
-        # 暂时符合目前新旧路径格式, 暂时不写递归, 如果之后出现别的情况, 再
-        zip_paths = get_zips(extra_path)
-        for zip_path in zip_paths:
-            zip_file = ZipFile(zip_path)
-            read_file(zip_file)
-    except Exception as e:
-        # TODO: 发送钉钉提醒, 或者微信提醒
-        print(e)
-        pass
-    finally:
-        if os.path.exists(extra_path):
-            # 删除文件
-            shutil.rmtree(extra_path)
-            print("*******删除成功*******")
-
-
-def get_zips(dir_path):
-    """
-    获取目录下的所有压缩文件
-    """
-    if is_zipfile(dir_path):
-        return [dir_path]
-    zip_paths = []
-    names = get_names(dir_path)
-    for name in names:
-        next_path = os.path.join(dir_path, name)
-        zip_paths.extend(get_zips(next_path))
-    return zip_paths
 
 
 def get_names(dir_path):
