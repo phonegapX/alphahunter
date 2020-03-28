@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import re
-import asyncio
 import datetime
 import time
 import pandas as pd
@@ -11,58 +10,79 @@ from mongo_utils import get_mongo_conn
 
 
 class Base(object):
+    DATABASE = "alphahunter"
+    LIMIT = 100
+    HALF_MINUTE = 30 * 1000
 
     def get_all(self, sort=None, **kwargs):
         pass
 
-    async def get_df_from_table(self, query={}, sort=None, skip=0, limit=1000):
+    def get_key(self):
+        key = ""
+        if self.__class__.__name__ in ["Trade", "OrderBook"]:
+            key = "dt"
+        elif self.__class__.__name__ == "Kline":
+            key = "begin_dt"
+        return key
+
+    def get_df_from_table(self, begin_timestamp, end_timestamp):
         """
+        查询一个时间段的数据
         use me like this:
 
-        kline = Kline(exchange_name="binance", symbol_name="btcusdt")
-        df = await kline.get_df_from_table()
+        trade = Trade(exchange_name="binance", symbol_name="btcusdt")
+        df = trade.get_df_from_table(1575158400000, 1575258400000)
         """
-        if sort:
-            cursor = self.collection.find(query).sort(sort).skip(skip).limit(limit)
-        else:
-            cursor = self.collection.find(query).skip(skip).limit(limit)
-        documents = [t_document for t_document in await cursor.to_list(length=limit)]
-        return DataFrame(documents)
+        documents = []
+        key = self.get_key()
 
-    async def to_daily(self, begin_dt_str, end_dt_str, key, lookback_hour, lookahead_hour, save_path):
+        for i in range(begin_timestamp, end_timestamp, self.HALF_MINUTE):
+            end = (i + self.HALF_MINUTE) if i + self.HALF_MINUTE < end_timestamp else end_timestamp
+            cursor = self.collection.find(
+                {key: {"$gte": i, "$lt": end}},
+                {"_id": 0},
+                sort=[("dt", 1)]
+            )
+            documents.extend(list(cursor))
+
+        df = pd.DataFrame(documents)
+        return df
+
+    def to_daily(self, begin_dt_str, end_dt_str, lookback_hour, lookahead_hour, save_path):
         """
         示例:
 
-        async def test():
+        def test():
             trade = Trade(exchange_name="binance", symbol_name="btcusdt")
             begin_str = "2019-12-01 11:23:56.123"
             end_str = "2019-12-01 14:24:56.123"
             save_path = "想要存放的路径"
             lookback_hour = 2
             lookahead_hour = 2
-            await trade.to_daily(begin_str, end_str, "tradedt", lookback_hour, lookahead_hour, save_path)
+            trade.to_daily(begin_str, end_str, lookback_hour, lookahead_hour, save_path)
         """
         if begin_dt_str > end_dt_str:
             raise ValueError("开始时间不能大于结束时间")
 
         days = self.divide_days(begin_dt_str, end_dt_str)
+        key = self.get_key()
 
         for i in range(0, len(days) - 1):
             begin_dt = days[i]
             begin_timestamp = datetime_2_timestamp(begin_dt)
             end_timestamp = datetime_2_timestamp(days[i + 1])
             # 查找该时间间隔内
-            now_df = await self.get_df(key, begin_timestamp, end_timestamp)
+            now_df = self.get_df(key, begin_timestamp, end_timestamp)
             if now_df.empty:
                 continue
 
             # 历史
             back_microsecond = lookback_hour * 60 * 60 * 1000
-            lookback_df = await self.get_df(key, begin_timestamp - back_microsecond, begin_timestamp, False)
+            lookback_df = self.get_df(key, begin_timestamp - back_microsecond, begin_timestamp, False)
 
             # 未来
             ahead_microsecond = lookahead_hour * 60 * 60 * 1000
-            lookahead_df = await self.get_df(key, end_timestamp, end_timestamp + ahead_microsecond, False)
+            lookahead_df = self.get_df(key, end_timestamp, end_timestamp + ahead_microsecond, False)
 
             df = pd.concat([lookback_df, now_df, lookahead_df], axis=0, sort=False)
             df.insert(0, "local_time", df[key])
@@ -70,14 +90,17 @@ class Base(object):
 
             file_name = save_path + "/" + begin_dt.strftime("%Y%m%d") + ".pkl"
             df.to_pickle(file_name)
-            file_name_csv = save_path + "/" + begin_dt.strftime("%Y%m%d") + ".csv"
-            df.to_csv(file_name_csv)
 
-    async def get_df(self, key, begin_timestamp, end_timestamp, good=True):
-        cursor = self.collection.find({key: {"$gte": begin_timestamp, "$lt": end_timestamp}}, {"_id": 0}).sort(key)
+    def get_df(self, key, begin_timestamp, end_timestamp, good=True):
         documents = []
-        async for document in cursor:
-            documents.append(document)
+        for i in range(begin_timestamp, end_timestamp, self.HALF_MINUTE):
+            end = (i + self.HALF_MINUTE) if i + self.HALF_MINUTE < end_timestamp else end_timestamp
+            cursor = self.collection.find(
+                {key: {"$gte": i, "$lt": end}},
+                {"_id": 0},
+                sort=[("dt", 1)]
+            )
+            documents.extend(list(cursor))
         # 若没有数据, 则跳过
         if not documents:
             return DataFrame([])
@@ -103,7 +126,10 @@ class Exchange(Base):
 
     def __init__(self):
         super(Base, self).__init__()
-        self.collection = get_mongo_conn()["t_exchange"]
+        self.collection = get_mongo_conn(self.DATABASE)["t_exchange"]
+
+    def insert(self, exchange_name):
+        return self.collection.insert_one({"name": exchange_name})
 
 
 class Symbol(Base):
@@ -126,7 +152,7 @@ class Symbol(Base):
 
     def __init__(self):
         super(Base, self).__init__()
-        self.collection = get_mongo_conn()["t_symbol"]
+        self.collection = get_mongo_conn(self.DATABASE)["t_symbol"]
 
     @classmethod
     def is_focus(cls, symbol_name):
@@ -144,27 +170,7 @@ class Symbol(Base):
 class OrderBook(Base):
     """
     市场订单簿表
-    创建索引
-    db.t_orderbook_binance_btcusdt.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_ethusdt.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_ltcusdt.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_etcusdt.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_xrpusdt.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_eosusdt.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_bchusdt.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_bsvusdt.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_trxusdt.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_adausdt.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_ethbtc.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_ltcbtc.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_etcbtc.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_xrpbtc.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_eosbtc.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_bchbtc.createIndex({dt:1},{background:1})
-
-    db.t_orderbook_binance_bsvbtc.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_trxbtc.createIndex({dt:1},{background:1})
-    db.t_orderbook_binance_adabtc.createIndex({dt:1},{background:1})
+    索引 dt
     """
     COLUMNS = ["dt",
                 "askprice1", "askprice2", "askprice3", "askprice4", "askprice5", "askprice6", "askprice7", "askprice8", "askprice9", "askprice10", "askprice11", "askprice12", "askprice13", "askprice14", "askprice15", "askprice16", "askprice17", "askprice18", "askprice19", "askprice20",  # NOQA
@@ -174,9 +180,10 @@ class OrderBook(Base):
             ]
 
     def __init__(self, exchange_name, symbol_name):
-        collection_name = "t_orderbook_{exchange_name}_{symbol_name}".format(exchange_name=exchange_name,
-                                                                             symbol_name=symbol_name)
-        self.collection = get_mongo_conn()[collection_name]
+        super(Base, self).__init__()
+        self.collection_name = "t_orderbook_{exchange_name}_{symbol_name}".format(exchange_name=exchange_name,
+                                                                                  symbol_name=symbol_name)
+        self.collection = get_mongo_conn(self.DATABASE)[self.collection_name]
 
 
 class Trade(Base):
@@ -187,9 +194,9 @@ class Trade(Base):
 
     def __init__(self, exchange_name, symbol_name):
         super(Base, self).__init__()
-        collection_name = "t_trade_{exchange_name}_{symbol_name}".format(exchange_name=exchange_name,
-                                                                         symbol_name=symbol_name)
-        self.collection = get_mongo_conn()[collection_name]
+        self.collection_name = "t_trade_{exchange_name}_{symbol_name}".format(exchange_name=exchange_name,
+                                                                              symbol_name=symbol_name)
+        self.collection = get_mongo_conn(self.DATABASE)[self.collection_name]
 
 
 class Kline(Base):
@@ -214,12 +221,11 @@ class Kline(Base):
         super(Base, self).__init__()
         self.collection_name = "t_kline_1min_{exchange_name}_{symbol_name}".format(exchange_name=exchange_name,
                                                                                    symbol_name=symbol_name)
-        self.collection = get_mongo_conn()[self.collection_name]
+        self.collection = get_mongo_conn(self.DATABASE)[self.collection_name]
         self.interval = self.INTERVAL_DIRECTION.get(interval_str, "1min")
 
-    @asyncio.coroutine
     def insert_many(self, klines):
-        result = yield from self.collection.bulk_write(klines)
+        result = self.collection.bulk_write(klines)
         return result
 
 
@@ -240,3 +246,16 @@ def mic_timestamp_2_datetime(series):
     timestamp = mic_timestamp / 1000
     dt = datetime.datetime.fromtimestamp(timestamp)
     return dt
+
+
+if __name__ == '__main__':
+
+    trade = Trade(exchange_name="binance", symbol_name="btcusdt")
+    df = trade.get_df_from_table(1575158400000, 1575258400000)
+
+    begin_str = "2019-12-01 11:23:56.123"
+    end_str = "2019-12-01 14:24:56.123"
+    save_path = "./"
+    lookback_hour = 2
+    lookahead_hour = 2
+    trade.to_daily(begin_str, end_str, lookback_hour, lookahead_hour, save_path)
