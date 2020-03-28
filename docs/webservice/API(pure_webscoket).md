@@ -12,19 +12,19 @@ version: 1.0.0
 >ping
 
 ```json
-	{
-		"op": "ping",
-		"ts": 1530604762311
-	}
+    {
+        "op": "ping",
+        "ts": 1530604762311
+    }
 ```
 
 >pong
 
 ```json
-	{
-		"op": "pong",
-		"ts": 1530604762311
-	}
+    {
+        "op": "pong",
+        "ts": 1530604762311
+    }
 ```
 
 
@@ -36,12 +36,12 @@ version: 1.0.0
 ```json
     {
         "op": "login",
-		"cid": "xxxxx",
+        "cid": "xxxxx",
         "platform": "huobi_future",
-		"symbols": ["btcusdt","ethusdt"],
-		"account": "xxxx@163.com",
-		"access_key": "xxxxxxxxxxxxx",
-		"secret_key": "xxxxxxxxxxxxx"
+        "symbols": ["btcusdt","ethusdt"],
+        "account": "xxxx@163.com",
+        "access_key": "xxxxxxxxxxxxx",
+        "secret_key": "xxxxxxxxxxxxx"
     }
 ```
 
@@ -59,11 +59,11 @@ version: 1.0.0
 
 ```json
     {
-		"op": "login",
-		"cid": "xxxxx",
-		"result": true,
-		"error_message": "",
-		"token": "xxxxxxxxxxx"
+        "op": "login",
+        "cid": "xxxxx",
+        "result": true,
+        "error_message": "",
+        "token": "xxxxxxxxxxx"
     }
 ```
 
@@ -82,13 +82,13 @@ version: 1.0.0
 ```json
     {
         "op": "place_order",
-		"cid": "xxxxx",
-		"token": "xxxxxxxxxxx",
+        "cid": "xxxxx",
+        "token": "xxxxxxxxxxx",
         "symbol": "ethusdt",
-		"action": "SELL",
-		"price": 219.24,
-		"quantity": 5.6,
-		"order_type": "LIMIT"
+        "action": "SELL",
+        "price": 219.24,
+        "quantity": 5.6,
+        "order_type": "LIMIT"
     }
 ```
 
@@ -107,11 +107,11 @@ version: 1.0.0
 
 ```json
     {
-		"op": "place_order",
-		"cid": "xxxxx",
-		"result": true,
-		"error_message": "",
-		"order_no": "xxxxxxxxxx"
+        "op": "place_order",
+        "cid": "xxxxx",
+        "result": true,
+        "error_message": "",
+        "order_no": "xxxxxxxxxx"
     }
 ```
 
@@ -130,10 +130,10 @@ version: 1.0.0
 ```json
     {
         "op": "cancel_order",
-		"cid": "xxxxx",
-		"token": "xxxxxxxxxxx",
+        "cid": "xxxxx",
+        "token": "xxxxxxxxxxx",
         "symbol": "ethusdt",
-		"order_nos": ["2510832677225473","2510832677225474"]
+        "order_nos": ["2510832677225473","2510832677225474"]
     }
 ```
 
@@ -148,25 +148,25 @@ version: 1.0.0
 >响应示例
 
 ```json
-	{
-		"op": "cancel_order",
-		"cid": "xxxxx",
-		"result": true,
-		"error_message": "",
-		"data": 
-		[
-			{
-				"result": true,
-				"error_message": "",
-				"order_no": "2510832677225473"
-			},
-			{
-				"result": true,
-				"error_message": "",
-				"order_no": "2510832677225474"
-			}
-		]
-	}
+    {
+        "op": "cancel_order",
+        "cid": "xxxxx",
+        "result": true,
+        "error_message": "",
+        "data": 
+        [
+            {
+                "result": true,
+                "error_message": "",
+                "order_no": "2510832677225473"
+            },
+            {
+                "result": true,
+                "error_message": "",
+                "order_no": "2510832677225474"
+            }
+        ]
+    }
 ```
 
 | Name          | Schema  | Description        |
@@ -184,8 +184,8 @@ version: 1.0.0
 ```json
     {
         "op": "open_orders",
-		"cid": "xxxxx",
-		"token": "xxxxxxxxxxx",
+        "cid": "xxxxx",
+        "token": "xxxxxxxxxxx",
         "symbol": "ethusdt"
     }
 ```
@@ -200,37 +200,37 @@ version: 1.0.0
 >响应示例
 
 ```json
-	{
-	    "op": "open_orders",
-		"cid": "xxxxx",
-		"result": true,
-		"error_message": "",
-		"data":	
-		[
-			{
-				"order_no": "2510832677225473",
-				"action": "BUY",
-				"price": 2289.6,
-				"quantity": 23,
-				"remain": 11,
-				"status": "PARTIAL-FILLED",
-				"order_type": "LIMIT",
-				"ctime": 1530604762277,
-				"utime": 1530604762278
-			},
-			{
-				"order_no": "2510832677225474",
-				"action": "SELL",
-				"price": 2189.6,
-				"quantity": 24.6,
-				"remain": 0,
-				"status": "SUBMITTED",
-				"order_type": "LIMIT",
-				"ctime": 1530604762222,
-				"utime": 1530604762311
-			}
-		]
-	}
+    {
+        "op": "open_orders",
+        "cid": "xxxxx",
+        "result": true,
+        "error_message": "",
+        "data":	
+        [
+            {
+                "order_no": "2510832677225473",
+                "action": "BUY",
+                "price": 2289.6,
+                "quantity": 23,
+                "remain": 11,
+                "status": "PARTIAL-FILLED",
+                "order_type": "LIMIT",
+                "ctime": 1530604762277,
+                "utime": 1530604762278
+            },
+            {
+                "order_no": "2510832677225474",
+                "action": "SELL",
+                "price": 2189.6,
+                "quantity": 24.6,
+                "remain": 0,
+                "status": "SUBMITTED",
+                "order_type": "LIMIT",
+                "ctime": 1530604762222,
+                "utime": 1530604762311
+            }
+        ]
+    }
 ```
 
 | Name          | Schema  | Description        |
@@ -254,8 +254,8 @@ version: 1.0.0
 ```json
     {
         "op": "asset",
-		"cid": "xxxxx",
-		"token": "xxxxxxxxxxx"
+        "cid": "xxxxx",
+        "token": "xxxxxxxxxxx"
     }
 ```
 
@@ -268,33 +268,33 @@ version: 1.0.0
 >响应示例
 
 ```json
-	{
-	    "op": "asset",
-		"cid": "xxxxx",
-		"result": true,
-		"error_message": "",
-		"data":
-		{
-			"BTC": 
-			{
-				"free": 1.1, 
-				"locked": 2.2, 
-				"total": 3.3
-			},
-			"ETH": 
-			{
-				"free": 1.1, 
-				"locked": 2.2, 
-				"total": 3.3
-			},
-			"EOS": 
-			{
-				"free": 1.1, 
-				"locked": 2.2, 
-				"total": 3.3
-			}
-		}
-	}
+    {
+        "op": "asset",
+        "cid": "xxxxx",
+        "result": true,
+        "error_message": "",
+        "data":
+        {
+            "BTC": 
+            {
+                "free": 1.1, 
+                "locked": 2.2, 
+                "total": 3.3
+            },
+            "ETH": 
+            {
+                "free": 1.1, 
+                "locked": 2.2, 
+                "total": 3.3
+            },
+            "EOS": 
+            {
+                "free": 1.1, 
+                "locked": 2.2, 
+                "total": 3.3
+            }
+        }
+    }
 ```
 
 | Name          | Schema  | Description        |
@@ -312,9 +312,9 @@ version: 1.0.0
 ```json
     {
         "op": "position",
-		"cid": "xxxxx",
-		"token": "xxxxxxxxxxx",
-		"symbol": "ethusdt"
+        "cid": "xxxxx",
+        "token": "xxxxxxxxxxx",
+        "symbol": "ethusdt"
     }
 ```
 
@@ -328,36 +328,36 @@ version: 1.0.0
 >响应示例
 
 ```json
-	{
-	    "op": "position",
-		"cid": "xxxxx",
-		"result": true,
-		"error_message": "",
-		"data": 
-		{
-			"margin_mode": "crossed",
-			
-			"long_quantity": 0,
-			"long_avail_qty": 0,
-			"long_open_price": 0,
-			"long_hold_price": 0,
-			"long_liquid_price": 0,
-			"long_unrealised_pnl": 0,
-			"long_leverage": 0,
-			"long_margin": 0,
-			
-			"short_quantity": 0,
-			"short_avail_qty": 0,
-			"short_open_price": 0,
-			"short_hold_price": 0,
-			"short_liquid_price": 0,
-			"short_unrealised_pnl": 0,
-			"short_leverage": 0,
-			"short_margin": 0,
+    {
+        "op": "position",
+        "cid": "xxxxx",
+        "result": true,
+        "error_message": "",
+        "data": 
+        {
+            "margin_mode": "crossed",
 
-			"utime": 1530604762311
-		}
-	}
+            "long_quantity": 0,
+            "long_avail_qty": 0,
+            "long_open_price": 0,
+            "long_hold_price": 0,
+            "long_liquid_price": 0,
+            "long_unrealised_pnl": 0,
+            "long_leverage": 0,
+            "long_margin": 0,
+
+            "short_quantity": 0,
+            "short_avail_qty": 0,
+            "short_open_price": 0,
+            "short_hold_price": 0,
+            "short_liquid_price": 0,
+            "short_unrealised_pnl": 0,
+            "short_leverage": 0,
+            "short_margin": 0,
+
+            "utime": 1530604762311
+        }
+    }
 ```
 
 | Name                 | Schema  | Description        |
@@ -390,9 +390,9 @@ version: 1.0.0
 ```json
     {
         "op": "symbol_info",
-		"cid": "xxxxx",
-		"token": "xxxxxxxxxxx",
-		"symbol": "ethusdt"
+        "cid": "xxxxx",
+        "token": "xxxxxxxxxxx",
+        "symbol": "ethusdt"
     }
 ```
 
@@ -406,22 +406,22 @@ version: 1.0.0
 >响应示例
 
 ```json
-	{
-	    "op": "symbol_info",
-		"cid": "xxxxx",
-		"result": true,
-		"error_message": "",
-		"data":
-		{
-			"price_tick": 0.01
-			"size_tick": 1
-			"size_limit": 10
-			"value_tick": 1
-			"value_limit": 10
-			"base_currency": "eth"
-			"quote_currency": "usdt"
-		}
-	}
+    {
+        "op": "symbol_info",
+        "cid": "xxxxx",
+        "result": true,
+        "error_message": "",
+        "data":
+        {
+            "price_tick": 0.01
+            "size_tick": 1
+            "size_limit": 10
+            "value_tick": 1
+            "value_limit": 10
+            "base_currency": "eth"
+            "quote_currency": "usdt"
+        }
+    }
 ```
 
 | Name           | Schema  | Description                 |
@@ -443,8 +443,8 @@ version: 1.0.0
 ```json
     {
         "op": "logout",
-		"cid": "xxxxx",
-		"token": "xxxxxxxxxxx"
+        "cid": "xxxxx",
+        "token": "xxxxxxxxxxx"
     }
 ```
 
@@ -457,12 +457,12 @@ version: 1.0.0
 >响应示例
 
 ```json
-	{
-		"op": "logout",
-		"cid": "xxxxx",
-		"result": true,
-		"error_message": ""
-	}
+    {
+        "op": "logout",
+        "cid": "xxxxx",
+        "result": true,
+        "error_message": ""
+    }
 ```
 
 | Name          | Schema  | Description        |
@@ -484,23 +484,23 @@ version: 1.0.0
 >通知示例
 
 ```json
-	{
-		"op": "notify",
-		"topic": "order",
-		"data":
-		{
-			"symbol": "ethusdt",
-			"order_no": "2510832677225474",
-			"action": "SELL",
-			"price": 2189.6,
-			"quantity": 24.6,
-			"remain": 0,
-			"status": "SUBMITTED",
-			"order_type": "LIMIT",
-			"ctime": 1530604762222,
-			"utime": 1530604762311
-		}
-	}
+    {
+        "op": "notify",
+        "topic": "order",
+        "data":
+        {
+            "symbol": "ethusdt",
+            "order_no": "2510832677225474",
+            "action": "SELL",
+            "price": 2189.6,
+            "quantity": 24.6,
+            "remain": 0,
+            "status": "SUBMITTED",
+            "order_type": "LIMIT",
+            "ctime": 1530604762222,
+            "utime": 1530604762311
+        }
+    }
 ```
 
 
@@ -511,21 +511,21 @@ version: 1.0.0
 >通知示例
 
 ```json
-	{
-		"op": "notify",
-		"topic": "fill",
-		"data":
-		{
-			"symbol": "ethusdt",
-			"order_no": "2510832677225474",
-			"fill_no": "9302836",
-			"price": 2189.6,
-			"quantity": 24.6,
-			"side": "SELL",
-			"liquidity": "TAKER",
-			"ctime": 1530604762311
-		}
-	}
+    {
+        "op": "notify",
+        "topic": "fill",
+        "data":
+        {
+            "symbol": "ethusdt",
+            "order_no": "2510832677225474",
+            "fill_no": "9302836",
+            "price": 2189.6,
+            "quantity": 24.6,
+            "side": "SELL",
+            "liquidity": "TAKER",
+            "ctime": 1530604762311
+        }
+    }
 ```
 
 
@@ -536,36 +536,36 @@ version: 1.0.0
 >通知示例
 
 ```json
-	{
-		"op": "notify",
-		"topic": "position",
-		"data":
-		{
-			"symbol": "ethusdt",
-	
-			"margin_mode": "crossed",
-			
-			"long_quantity": 0,
-			"long_avail_qty": 0,
-			"long_open_price": 0,
-			"long_hold_price": 0,
-			"long_liquid_price": 0,
-			"long_unrealised_pnl": 0,
-			"long_leverage": 0,
-			"long_margin": 0,
-			
-			"short_quantity": 0,
-			"short_avail_qty": 0,
-			"short_open_price": 0,
-			"short_hold_price": 0,
-			"short_liquid_price": 0,
-			"short_unrealised_pnl": 0,
-			"short_leverage": 0,
-			"short_margin": 0,
+    {
+        "op": "notify",
+        "topic": "position",
+        "data":
+        {
+            "symbol": "ethusdt",
 
-			"utime": 1530604762311
-		}
-	}
+            "margin_mode": "crossed",
+
+            "long_quantity": 0,
+            "long_avail_qty": 0,
+            "long_open_price": 0,
+            "long_hold_price": 0,
+            "long_liquid_price": 0,
+            "long_unrealised_pnl": 0,
+            "long_leverage": 0,
+            "long_margin": 0,
+
+            "short_quantity": 0,
+            "short_avail_qty": 0,
+            "short_open_price": 0,
+            "short_hold_price": 0,
+            "short_liquid_price": 0,
+            "short_unrealised_pnl": 0,
+            "short_leverage": 0,
+            "short_margin": 0,
+
+            "utime": 1530604762311
+        }
+    }
 ```
 
 
@@ -576,29 +576,29 @@ version: 1.0.0
 >通知示例
 
 ```json
-	{
-		"op": "notify",
-		"topic": "asset",
-		"data":
-		{
-			"BTC": 
-			{
-				"free": 1.1, 
-				"locked": 2.2, 
-				"total": 3.3
-			},
-			"ETH": 
-			{
-				"free": 1.1, 
-				"locked": 2.2, 
-				"total": 3.3
-			},
-			"EOS": 
-			{
-				"free": 1.1, 
-				"locked": 2.2, 
-				"total": 3.3
-			}
-		}
-	}
+    {
+        "op": "notify",
+        "topic": "asset",
+        "data":
+        {
+            "BTC": 
+            {
+                "free": 1.1, 
+                "locked": 2.2, 
+                "total": 3.3
+            },
+            "ETH": 
+            {
+                "free": 1.1, 
+                "locked": 2.2, 
+                "total": 3.3
+            },
+            "EOS": 
+            {
+                "free": 1.1, 
+                "locked": 2.2, 
+                "total": 3.3
+            }
+        }
+    }
 ```
