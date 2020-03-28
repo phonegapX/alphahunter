@@ -413,12 +413,12 @@ version: 1.0.0
         "error_message": "",
         "data":
         {
-            "price_tick": 0.01
-            "size_tick": 1
-            "size_limit": 10
-            "value_tick": 1
-            "value_limit": 10
-            "base_currency": "eth"
+            "price_tick": 0.01,
+            "size_tick": 1,
+            "size_limit": 10,
+            "value_tick": 1,
+            "value_limit": 10,
+            "base_currency": "eth",
             "quote_currency": "usdt"
         }
     }
