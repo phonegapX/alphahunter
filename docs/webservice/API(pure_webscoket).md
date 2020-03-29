@@ -487,6 +487,7 @@ version: 1.0.0
     {
         "op": "notify",
         "topic": "order",
+        "token": "xxxxxxxxxxx",
         "data":
         {
             "symbol": "ethusdt",
@@ -514,6 +515,7 @@ version: 1.0.0
     {
         "op": "notify",
         "topic": "fill",
+        "token": "xxxxxxxxxxx",
         "data":
         {
             "symbol": "ethusdt",
@@ -539,6 +541,7 @@ version: 1.0.0
     {
         "op": "notify",
         "topic": "position",
+        "token": "xxxxxxxxxxx",
         "data":
         {
             "symbol": "ethusdt",
@@ -579,6 +582,7 @@ version: 1.0.0
     {
         "op": "notify",
         "topic": "asset",
+        "token": "xxxxxxxxxxx",
         "data":
         {
             "BTC": 
@@ -600,5 +604,31 @@ version: 1.0.0
                 "total": 3.3
             }
         }
+    }
+```
+
+
+
+------------
+
+## 状态通知
+在登录交易所过程中以及在正常运行过程中发生任何问题都会经此通知客户端,下面是相应状态码:
+
+    STATE_CODE_PARAM_MISS = 1       #参数丢失
+    STATE_CODE_CONNECT_SUCCESS = 2  #连接成功
+    STATE_CODE_CONNECT_FAILED = 3   #连接失败
+    STATE_CODE_DISCONNECT = 4       #连接断开
+    STATE_CODE_RECONNECTING = 5     #重新连接中
+    STATE_CODE_READY = 6            #策略环境准备好
+    STATE_CODE_GENERAL_ERROR = 7    #一般常规错误
+
+>通知示例
+
+```json
+    {
+        "op": "state",
+        "token": "xxxxxxxxxxx",
+        "code": STATE_CODE_RECONNECTING,
+        "msg": "xxxxxx"
     }
 ```
