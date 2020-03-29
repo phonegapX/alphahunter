@@ -31,7 +31,7 @@ version: 1.0.0
 ```json
     {
         "result": true,
-        "error_message": ""
+        "error_message": "",
         "token": "xxxxxxxxxxx"
     }
 ```
