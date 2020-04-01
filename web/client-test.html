@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<meta charset="utf-8" />
+<html>
+<head>
+<script src="http://code.jquery.com/jquery-1.4.2.min.js">
+</script>
+  <script language="javascript" type="text/javascript">
+    $(function() {
+      var token = null;
+      var conn = null;
+      var can_do = false;
+      function log(msg) {
+        var control = $('#log');
+        control.html(control.html() + msg + '<br/>');
+        control.scrollTop(control.scrollTop() + 1000);
+      }
+
+      function loop_ping() {
+        if (conn != null) {
+            var o = {
+              "op": "ping",
+              "ts": new Date().getTime()
+            }
+            conn.send(JSON.stringify(o)); //每五秒发送一次ping
+        }
+      }
+      setInterval(loop_ping, 5000);
+      
+      function start_do() {
+        if (can_do) { //登录真正成功,可以进行各种操作了
+        
+            var o = {
+              "op": "open_orders",
+              "cid": "10004",
+              "token": token,
+              "symbol": "ethusdt"
+            }
+            alert(JSON.stringify(o));
+            conn.send(JSON.stringify(o)); //查询当前挂单
+            
+            var o = {
+              "op": "asset",
+              "cid": "10005",
+              "token": token
+            }
+            alert(JSON.stringify(o));
+            conn.send(JSON.stringify(o)); //查询账户资产
+
+            var o = {
+              "op": "symbol_info",
+              "cid": "10007",
+              "token": token,
+              "symbol": "ethusdt"
+            }
+            alert(JSON.stringify(o));
+            conn.send(JSON.stringify(o)); //查询符号信息
+        
+            var o = {
+              "op": "place_order",
+              "cid": "10002",
+              "token": token,
+              "symbol": "ethusdt",
+              "action": "SELL",
+              "price": 269.24,
+              "quantity": 0.05,
+              "order_type": "LIMIT"
+            }
+            alert(JSON.stringify(o));
+            conn.send(JSON.stringify(o)); //下单演示
+            
+            
+        } else {
+          setTimeout(start_do, 1000);
+        }
+      }
+      
+      setTimeout(start_do, 1000);
+      
+      function connect() {
+        disconnect();
+        var wsUri = (window.location.protocol=='https:'&&'wss://'||'ws://')+window.location.host+'/ws/v1';
+        conn = new WebSocket(wsUri);
+        log('Connecting...');
+        conn.onopen = function() {
+          log('Connected.');
+          update_ui();
+          var o = {
+              "op": "login",
+              "cid": "10001",
+              "platform": "huobi",
+              "symbols": ["btcusdt","ethusdt"],
+              "account": "test",
+              "access_key": "test",
+              "secret_key": "test"
+          };
+          conn.send(JSON.stringify(o)); //登录演示
+        };
+        conn.onmessage = function(e) {
+          log('Received: ' + e.data);
+          var obj = JSON.parse(e.data);
+          if (obj.op == "login" && obj.cid == "10001" && obj.result) { //登录操作成功完成(但是否真正登录成功要根据state通知判断)
+            token = obj.token; //接收登录操作返回的登录令牌
+          } else if (obj.op == "state" && obj.token == token && obj.code == 6) { //收到这个消息后才代表登录完全成功,才能进行各种操作
+            can_do = true; //可以开始各种操作,比如下单
+          } else if (obj.op == "place_order" && obj.cid == "10002" && obj.result) { //如果下单成功
+            var o = {
+              "op": "cancel_order",
+              "cid": "10003",
+              "token": token,
+              "symbol": "ethusdt",
+              "order_nos": [obj.order_no, "1234567890123"]
+            }
+            alert(JSON.stringify(o));
+            conn.send(JSON.stringify(o)); //撤销订单演示
+            
+          } else if (obj.op == "cancel_order" && obj.cid == "10003" && obj.result) {  //撤单成功
+            alert(e.data);
+          } else if (obj.op == "open_orders" && obj.cid == "10004" && obj.result) {  //查询挂单成功          
+            alert(e.data);
+          } else if (obj.op == "asset" && obj.cid == "10005" && obj.result) {  //查询账户资产成功
+            alert(e.data);
+          } else if (obj.op == "position" && obj.cid == "10006" && obj.result) {  //查询当前持仓成功          
+            alert(e.data);
+          } else if (obj.op == "symbol_info" && obj.cid == "10007" && obj.result) {  //查询当前持仓成功
+            alert(e.data);     
+          } else if (obj.op == "notify" && obj.topic == "order" && obj.token == token) {  //订单通知
+            //
+          } else if (obj.op == "notify" && obj.topic == "fill" && obj.token == token) {  //成交通知
+            //
+          } else if (obj.op == "notify" && obj.topic == "position" && obj.token == token) {  //仓位通知
+            //
+          } else if (obj.op == "notify" && obj.topic == "asset" && obj.token == token) {  //资产通知
+            //
+          }
+
+        };
+        conn.onclose = function() {
+          log('Disconnected.');
+          conn = null;
+          update_ui();
+        };
+      }
+      function disconnect() {
+        if (conn != null) {
+        
+          if (token != null) {
+            var o = {
+                "op": "logout",
+                "cid": "10008",
+                "token": token
+            };
+            alert(JSON.stringify(o));
+            conn.send(JSON.stringify(o)); //退出登录
+            token = null;
+          }
+
+          alert('Disconnecting...');
+          //return
+          
+          log('Disconnecting...');
+          conn.close();
+          conn = null;
+          update_ui();
+        }
+      }
+      function update_ui() {
+        if (conn == null) {
+          $('#status').text('disconnected');
+          $('#connect').html('Connect');
+        } else {
+          $('#status').text('connected (' + conn.protocol + ')');
+          $('#connect').html('Disconnect');
+        }
+      }
+      $('#connect').click(function() {
+        if (conn == null) {
+          connect();
+        } else {
+          disconnect();
+        }
+        update_ui();
+        return false;
+      });
+      $('#send').click(function() {
+        var text = $('#text').val();
+        log('Sending: ' + text);
+        conn.send(text);
+        $('#text').val('').focus();
+        return false;
+      });
+      $('#text').keyup(function(e) {
+        if (e.keyCode === 13) {
+          $('#send').click();
+          return false;
+        }
+      });
+    });
+</script>
+</head>
+<body>
+<h3>量化交易API测试(websocket版)</h3>
+<div>
+  <button id="connect">Connect</button>&nbsp;|&nbsp;Status:
+  <span id="status">disconnected</span>
+</div>
+<div id="log"
+     style="width:100em;height:55em;overflow:auto;border:1px solid black">
+</div>
+<form id="testform" onsubmit="return false;">
+  <input id="text" type="text" />
+  <input id="send" type="button" value="Send" />
+</form>
+</body>
+</html>

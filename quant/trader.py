@@ -207,3 +207,6 @@ class Trader(ExchangeGateway):
         """
         success, error = await self._t.invalid_indicate(symbol, indicate_type)
         return success, error
+
+    def shutdown(self):
+        pass
