@@ -44,6 +44,8 @@ pip install alphahunter
   ./backtest 包含一些策略回测示例。
   
   ./notebook 存放策略研究相关文件,如.ipynb文件
+  
+  ./web 量化交易接口API(纯websocket版),利用此接口可以支持C/C++,Go,Java,Javascript等语言进行策略开发 [查看文档](docs/webservice/API(pure_webscoket).md)
 
 - 快速体验
     [实盘Demo](example/)
