@@ -6,6 +6,14 @@
 </script>
   <script language="javascript" type="text/javascript">
     $(function() {
+      const STATE_CODE_PARAM_MISS = 1;       //参数丢失
+      const STATE_CODE_CONNECT_SUCCESS = 2;  //连接成功
+      const STATE_CODE_CONNECT_FAILED = 3;   //连接失败
+      const STATE_CODE_DISCONNECT = 4;       //连接断开
+      const STATE_CODE_RECONNECTING = 5;     //重新连接中
+      const STATE_CODE_READY = 6;            //策略环境准备好
+      const STATE_CODE_GENERAL_ERROR = 7;    //一般常规错误
+      //...
       var token = null;
       var conn = null;
       var can_do = false;
@@ -89,7 +97,6 @@
               "cid": "10001",
               "platform": "huobi",
               "symbols": ["btcusdt","ethusdt"],
-              "account": "test",
               "access_key": "test",
               "secret_key": "test"
           };
@@ -100,7 +107,7 @@
           var obj = JSON.parse(e.data);
           if (obj.op == "login" && obj.cid == "10001" && obj.result) { //登录操作成功完成(但是否真正登录成功要根据state通知判断)
             token = obj.token; //接收登录操作返回的登录令牌
-          } else if (obj.op == "state" && obj.token == token && obj.code == 6) { //收到这个消息后才代表登录完全成功,才能进行各种操作
+          } else if (obj.op == "state" && obj.token == token && obj.code == STATE_CODE_READY) { //收到这个消息后才代表登录完全成功,才能进行各种操作
             can_do = true; //可以开始各种操作,比如下单
           } else if (obj.op == "place_order" && obj.cid == "10002" && obj.result) { //如果下单成功
             var o = {
