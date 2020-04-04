@@ -37,15 +37,15 @@ class MongoDB(object):
     _connected = False
 
     @classmethod
-    def mongodb_init(cls, host="127.0.0.1", port=27017, username="", password="", dbname="db_market"):
+    def mongodb_init(cls, host="127.0.0.1", port=27017, username="", password="", dbname="admin"):
         """ Initialize a connection pool for MongoDB.
-    
+
         Args:
             host: Host for MongoDB server.
             port: Port for MongoDB server.
             username: Username for MongoDB server.
             password: Password for MongoDB server.
-            dbname: DB name to connect for, default is `db_market`.
+            dbname: DB name to connect for, default is `admin`.
         """
         if username and password:
             uri = "mongodb://{username}:{password}@{host}:{port}/{dbname}".format(username=quote_plus(username),

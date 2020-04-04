@@ -17,7 +17,7 @@ from quant.utils import logger
 def default_main(strategy_class):
     """ 默认启动函数
     """
-    config_file = os.path.abspath("config.json")
+    config_file = os.path.dirname(os.path.abspath(sys.argv[0])) + "/config.json"
     if not os.path.isfile(config_file):
         logger.error("config.json miss")
         return

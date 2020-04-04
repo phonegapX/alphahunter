@@ -32,9 +32,9 @@
     "MONGODB": {
         "host": "127.0.0.1",
         "port": 27017,
-        "username": "",
-        "password": "",
-        "dbname": "db_market"
+        "username": "root",
+        "password": "123456",
+        "dbname": "admin"
     },
     "strategy": "huobi_future_collect"
 }

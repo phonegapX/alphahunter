@@ -100,6 +100,8 @@ class Collect(Strategy):
             t_kline = self.t_kline_map[kline.symbol]
             if t_kline:
                 s, e = await t_kline.insert(kwargs)
+                if e:
+                    logger.error("insert kline:", e, caller=self)
         SingleTask.run(save, kwargs)
         #发布行情到消息队列
         kwargs = {
@@ -148,6 +150,8 @@ class Collect(Strategy):
                 t_orderbook = self.t_orderbook_map[orderbook.symbol]
                 if t_orderbook:
                     s, e = await t_orderbook.insert(dlist)
+                    if e:
+                        logger.error("insert orderbook:", e, caller=self)
         SingleTask.run(save, kwargs)
         #发布行情到消息队列
         kwargs = {
@@ -185,6 +189,8 @@ class Collect(Strategy):
                 t_trade = self.t_trade_map[trade.symbol]
                 if t_trade:
                     s, e = await t_trade.insert(dlist)
+                    if e:
+                        logger.error("insert trade:", e, caller=self)
         SingleTask.run(save, kwargs)
         #发布行情到消息队列
         kwargs = {
