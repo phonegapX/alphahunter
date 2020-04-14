@@ -67,14 +67,15 @@ class Collect(Strategy):
         self.d_trade_map = defaultdict(lambda:[])
         if config.mongodb:
             for sym in self.symbols:
+                postfix = sym.replace('-','').replace('_','').replace('/','').lower() #将所有可能的情况转换为我们自定义的数据库表名规则
                 #订单薄
-                name = "t_orderbook_{}_{}".format(self.platform, sym).lower()
+                name = "t_orderbook_{}_{}".format(self.platform, postfix).lower()
                 self.t_orderbook_map[sym] = MongoDB("db_market", name)
                 #逐笔成交
-                name = "t_trade_{}_{}".format(self.platform, sym).lower()
+                name = "t_trade_{}_{}".format(self.platform, postfix).lower()
                 self.t_trade_map[sym] = MongoDB("db_market", name)
                 #K线
-                name = "t_kline_{}_{}".format(self.platform, sym).lower()
+                name = "t_kline_{}_{}".format(self.platform, postfix).lower()
                 self.t_kline_map[sym] = MongoDB("db_market", name)
 
     async def on_state_update_callback(self, state: State, **kwargs):
