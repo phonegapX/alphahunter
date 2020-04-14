@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-import asyncio
 import math
+import json
+import logging
+import copy
 
 from pymongo import UpdateOne, InsertOne
 
@@ -10,41 +12,49 @@ from models import Trade, Symbol, Exchange, Kline
 ONE_DAY = 60 * 60 * 24 * 1000  # 一天毫秒数
 LIMIT = 500
 
+RE_PATH = "/home/nijun/Documents/timeout/re/"
+error_log = logging.getLogger("error_log")
+formatter = logging.Formatter("")
+fileHandler = logging.FileHandler("error.log", mode='a')
+fileHandler.setFormatter(formatter)
+error_log.setLevel(logging.ERROR)
+error_log.addHandler(fileHandler)
 
-async def main():
-    begin_timestamp = 1575129600000  # 开始时间, 12-1 00:00:00.000
-    end_timestamp = 1578585600000  # 结束时间 01-10  00:00:00.000
-    # end_timestamp = begin_timestamp + ONE_DAY * 2
+
+def main():
+    begin_timestamp = 1525104000000  # 开始时间, 2018-05-01 00:00:00.000
+    end_timestamp = 1578499200000  # 结束时间 2020-01-09  00:00:00.000
+    # end_timestamp = begin_timestamp + ONE_DAY * 40
     for begin_dt in range(begin_timestamp, end_timestamp, ONE_DAY):
-        await day_loop(begin_dt)
+        day_loop(begin_dt)
 
 
-async def day_loop(begin_dt):
+def day_loop(begin_dt):
     # 关注标的
     focus_symbols = Symbol.FOCUS_SYMBOLS
     # 交易所
     exchange = Exchange()
     exchange_cursor = exchange.collection.find()
-    for e_document in await exchange_cursor.to_list(length=100):
-        exchange_name = e_document["name"]
 
+    for e_document in exchange_cursor:
+        exchange_name = e_document["name"]
         for focus_symbol in focus_symbols:
+            error_log.error("{} {} start".format(exchange_name, begin_dt))
             # 查询trade数据
             trade = Trade(exchange_name, focus_symbol)
             kline = Kline(exchange_name, focus_symbol)
 
             # 计算
-            klines = await calculate(trade, kline, begin_dt)
+            klines = calculate(trade, kline, begin_dt)
 
             # 存储
-            await insert(kline, begin_dt, klines)
-            break
+            insert(kline, begin_dt, klines)
 
 
-async def calculate(trade, kline, begin_timestamp):
+def calculate(trade, kline, begin_timestamp):
     # 查询上一天最后一笔trade数据的trade price
-    prev_close_price = await query_prev_close_price(begin_timestamp, trade)
-    prev_kline = await query_prev_kline(kline, begin_timestamp)
+    prev_close_price = query_prev_close_price(begin_timestamp, trade)
+    prev_kline = query_prev_kline(kline, begin_timestamp)
 
     klines = []
     kline_document = {}
@@ -53,7 +63,7 @@ async def calculate(trade, kline, begin_timestamp):
     # 按照 kline 时间段划分
     # for begin_dt in range(begin_timestamp, begin_timestamp + kline.interval * 5, kline.interval):
     for begin_dt in range(begin_timestamp, begin_timestamp + ONE_DAY, kline.interval):
-        end_dt = begin_dt + kline.interval
+        end_dt = begin_dt + kline.interval - 1
         kline_document = {
             "begin_dt": begin_dt,
             "end_dt": end_dt,
@@ -65,7 +75,9 @@ async def calculate(trade, kline, begin_timestamp):
             "buy_avg_price": 0.0,
             "sell_avg_price": 0.0,
             "open_avg": 0.0,
+            "open_avg_fillna": 0.0,
             "close_avg": 0.0,
+            "close_avg_fillna": 0.0,
             "volume": 0.0,
             "amount": 0.0,
             "buy_volume": 0.0,
@@ -88,16 +100,17 @@ async def calculate(trade, kline, begin_timestamp):
             "sectional_sell_amount": 0.0,
             "prev_close_price": prev_close_price,
             "next_price": 0.0,
+            "next_price_fillna": 0.0,
             "prev_price": prev_kline.get("close_avg", 0.0),
+            "prev_price_fillna": prev_kline.get("close_avg_fillna", 0.0),
             "lead_ret": None,
             "lag_ret": None,
             "usable": False
         }
 
-        trade_cursor = trade.collection.find(
-            {"tradedt": {"$gte": begin_dt, "$lt": end_dt}}).sort("tradedt")
+        trade_cursor = trade.collection.find({"dt": {"$gte": begin_dt, "$lte": end_dt}}).sort("dt")
 
-        trades = [t_document for t_document in await trade_cursor.to_list(length=kline.interval)]
+        trades = [t_document for t_document in trade_cursor]
         if trades:
             kline_document["open"] = trades[0]["tradeprice"]
             kline_document["close"] = trades[-1]["tradeprice"]
@@ -153,9 +166,11 @@ async def calculate(trade, kline, begin_timestamp):
             kline_document["sell_volume"] = results["sum_volume"]
             kline_document["sell_amount"] = results["sum_amount"]
 
-        prev_kline_sectional_low = prev_kline.get("sectional_low", 0.0)
         kline_document["sectional_high"] = max([prev_kline.get("sectional_high", 0.0), high])
-        kline_document["sectional_low"] = min([low, prev_kline_sectional_low]) if prev_kline_sectional_low else low
+        prev_kline_sectional_low = prev_kline.get("sectional_low", 0.0)
+        min_low = min([low, prev_kline_sectional_low])
+        kline_document["sectional_low"] = min_low if min_low else max([low, prev_kline_sectional_low])
+
         sectional_volume = prev_kline.get("sectional_volume", 0.0) + kline_document["volume"]
         sectional_amount = prev_kline.get("sectional_amount", 0.0) + kline_document["amount"]
         kline_document["sectional_volume"] = sectional_volume
@@ -190,14 +205,21 @@ async def calculate(trade, kline, begin_timestamp):
             results = handle_documents(close_trades)
             kline_document["close_avg"] = results["avg_price"]
 
+        open_avg = kline_document["open_avg"]
+        close_avg = kline_document["close_avg"]
+        kline_document["open_avg_fillna"] = open_avg if open_avg else kline_document["open"]
+        kline_document["close_avg_fillna"] = close_avg if close_avg else kline_document["close"]
+
         kline_document["lag_ret"] = math.log(kline_document["close_avg"] / prev_kline["close_avg"]) \
             if prev_kline["close_avg"] and kline_document["close_avg"] else None
 
         # "lead_ret": 0.0  # math.log(next_price / open_avg),
         open_avg = kline_document["open_avg"]
+        open_avg_fillna = kline_document["open_avg_fillna"]
         lead_ret = math.log(open_avg / prev_kline["open_avg"]) if prev_kline.get("open_avg", 0.0) and open_avg else None
         prev_kline.update({
             "next_price": open_avg,
+            "next_price_fillna": open_avg_fillna if open_avg_fillna else prev_kline["close_avg_fillna"],
             "lead_ret": lead_ret,
         })
 
@@ -222,28 +244,44 @@ async def calculate(trade, kline, begin_timestamp):
     return klines
 
 
-async def insert(kline, begin_timestamp, klines):
+def insert(kline, begin_timestamp, klines):
     for offset in range(0, len(klines), LIMIT):
-        result = await kline.insert_many(klines[offset: offset + LIMIT])
-        print(result.bulk_api_result, begin_timestamp, kline.collection_name)
+        try:
+            documents = copy.deepcopy(klines[offset: offset + LIMIT])
+            result = kline.insert_many(documents)
+            print(result.bulk_api_result, begin_timestamp, kline.collection_name)
+            message = {
+                "result": result.bulk_api_result,
+                "begin_timestamp": begin_timestamp,
+                "name": kline.collection_name
+            }
+            error_log.error(json.dumps(message))
+        except Exception as e:
+            error_log.error("error \n")
+            error_log.error(e)
+            with open(RE_PATH + kline.collection_name + ".txt", "a") as f:
+                f.write(json.dumps(klines[offset: offset + LIMIT]))
+                f.write("\n")
 
 
-async def query_prev_close_price(begin_timestamp, trade):
+def query_prev_close_price(begin_timestamp, trade):
     prev_trade_cursor = trade.collection.find(
-        {"tradedt": {"$gte": begin_timestamp - ONE_DAY, "$lt": begin_timestamp}}).sort("tradedt", -1)
-    prev_trades = [t_document for t_document in await prev_trade_cursor.to_list(length=1)]
+        {"dt": {"$gte": begin_timestamp - ONE_DAY, "$lt": begin_timestamp}}).sort("dt", -1)
+    prev_trades = [t_document for t_document in prev_trade_cursor]
     prev_close_price = prev_trades[0].get("tradeprice", 0.0) if prev_trades else 0.0
 
     return prev_close_price
 
 
-async def query_prev_kline(kline, begin_timestamp):
-    prev_kline = await kline.collection.find_one({
+def query_prev_kline(kline, begin_timestamp):
+    prev_kline = kline.collection.find_one({
         "begin_dt": begin_timestamp - kline.interval,
     }) or {}
     return {
         "open_avg": prev_kline.get("open_avg", 0.0),
-        "close_avg": prev_kline.get("close_avg", 0.0)
+        "open_avg_fillna": prev_kline.get("open_avg_fillna", 0.0),
+        "close_avg": prev_kline.get("close_avg", 0.0),
+        "close_avg_fillna": prev_kline.get("close_avg_fillna", 0.0),
     }
 
 
@@ -263,5 +301,4 @@ def handle_documents(documents):
 
 if __name__ == '__main__':
     # TODO： 根据传入参数决定生成的kline种类
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    main()

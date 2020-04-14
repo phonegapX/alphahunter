@@ -203,6 +203,7 @@ class Kline(Base):
     """
     K线
     """
+    DATABASE = "kline"
     COLUMNS = ["begin_dt", "end_dt", "open", "high", "low", "close", "avg_price", "buy_avg_price", "sell_avg_price",
                "open_avg", "close_avg", "volume", "amount", "book_count", "buy_book_count", "sell_book_count",
                "buy_volume", "sell_volume", "sell_aomunt", "sectional_high", "sectional_low", "sectional_volume",
