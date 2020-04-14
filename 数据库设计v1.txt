@@ -95,6 +95,16 @@ TABLE t_kline_1min_xxx_yyy (如果是五分钟k线的话就是t_kline_5min_xxx_y
     prev_price -->类型:float. 备注:前一个Kline的close_avg
     lead_ret -->类型:float. 备注:相对于本bar,未来一个收益率
     lag_ret -->类型:float. 备注:相对于本bar,之前一个收益率
+
+    open_avg_fillna -->类型:float. 备注:如果open_avg为0.0，那么赋值open
+    close_avg_fillna -->类型:float. 备注:如果close_avg为0.0，那么赋值close
+    next_price_fillna -->类型:float. 备注:下一个Kline的open_avg_fillna
+    prev_price_fillna -->类型:float. 备注:前一个Kline的close_avg_fillna
+    lead_ret_fillna -->类型:float. 备注:相对于本bar,未来一个收益率
+    lag_ret_fillna -->类型:float. 备注:相对于本bar,之前一个收益率
+
+
+
     usable: True if volume>0 else False
 
 ==================================================================================================================================
@@ -198,6 +208,14 @@ TABLE t_symbol_info:
 37. lead_ret = log(next_price / open_avg)
 38. lag_ret = log(close_avg / prev_price)
 39. usable = True if volume > 0 else False
+
+40. open_avg_fillna = open_avg if open_avg != 0 else open
+41. close_avg_fillna = close_avg if close_avg != 0 else close
+42. next_price_fillna = 下一根k线的open_avg_fillna
+43. prev_price_fillna = 上一根k线的close_avg_fillna
+44. lead_ret_fillna = log(next_price_fillna / open_avg_fillna)
+45. lag_ret_fillna = log(close_avg_fillna / prev_price_fillna)
+
 
 #=================================================================================================================================
 
