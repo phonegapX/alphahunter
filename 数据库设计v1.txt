@@ -25,7 +25,8 @@ TABLE t_symbol:
 
 #市场订单簿表, xxx是交易所名称 yyy是`符号对`,比如同一个`符号对`有些交易所是 btc/usdt,有些是btc_usdt,有些是btcusdt,不管什么格式统一转换为btcusdt这种,比如t_orderbook_binance_btcusdt
 TABLE t_orderbook_xxx_yyy:
-    dt -->类型:64位正整数. 备注:表示记录时间距离 Unix新纪元（1970年1月1日）的毫秒数
+    dt -->类型:64位正整数. 备注:表示我们自己的采集程序记录时间距离 Unix新纪元（1970年1月1日）的毫秒数
+    pubdt -->类型:64位正整数. 备注:表示交易所发布行情的时间距离 Unix新纪元（1970年1月1日）的毫秒数
     asksize1 -->类型:float
     ...
     asksize20 -->类型:float
@@ -102,8 +103,6 @@ TABLE t_kline_1min_xxx_yyy (如果是五分钟k线的话就是t_kline_5min_xxx_y
     prev_price_fillna -->类型:float. 备注:前一个Kline的close_avg_fillna
     lead_ret_fillna -->类型:float. 备注:相对于本bar,未来一个收益率
     lag_ret_fillna -->类型:float. 备注:相对于本bar,之前一个收益率
-
-
 
     usable: True if volume>0 else False
 
@@ -208,14 +207,12 @@ TABLE t_symbol_info:
 37. lead_ret = log(next_price / open_avg)
 38. lag_ret = log(close_avg / prev_price)
 39. usable = True if volume > 0 else False
-
 40. open_avg_fillna = open_avg if open_avg != 0 else open
 41. close_avg_fillna = close_avg if close_avg != 0 else close
 42. next_price_fillna = 下一根k线的open_avg_fillna
 43. prev_price_fillna = 上一根k线的close_avg_fillna
 44. lead_ret_fillna = log(next_price_fillna / open_avg_fillna)
 45. lag_ret_fillna = log(close_avg_fillna / prev_price_fillna)
-
 
 #=================================================================================================================================
 
@@ -224,7 +221,7 @@ TABLE t_symbol_info:
 2.对于日期时间等，为了普适性，统一转换成unix时间戳用64位整数类型进行保存，不使用任何数据库自带的datetime类型，另外交易所分布世界各地，统计时间统一使用东八区时间
 3.数据库表名，字段名等统一小写
 4.我们的binance的数据中，trade数据里面，他的amount字段，其实对应的是我们的volume，它没有我们所说的amount
-5.暂时所有表都保存在同一个数据库当中,数据库名称为:db_market,数据库采用mongodb,数据库术语对比:
+5.自合成K线表存放于名称为db_custom_kline数据库中, 而所有其他表都保存在名称为db_market的数据库中,数据库采用mongodb,数据库术语对比:
     SQL术语/概念    MongoDB术语/概念   解释/说明
     database        database          数据库
     table           collection        表/集合
@@ -232,9 +229,6 @@ TABLE t_symbol_info:
     column          field             字段/域
     index           index             索引
     primary_key     primary_key       主键,MongoDB自动将_id字段设置为主键
-
-
-
 6.在kline合成过程中，如果对应kline时间段内没有成交量，那么我们也会生成这个kline，只需要在usable这个字段标识它是否可用
   同时，对于不可用的这个kline里的其他字段取值，方法如下：
   begin_dt -->类型:64位正整数. 正常

@@ -136,7 +136,8 @@ class Collect(Strategy):
             kwargs[f'bidsize{i}'] = bid[1]
             i = i + 1
             if i > 20: break
-        kwargs["dt"] = orderbook.timestamp
+        kwargs["pubdt"] = orderbook.timestamp #交易所发布行情的时间
+        kwargs["dt"] = tools.get_cur_timestamp_ms() #本地采集行情的时间
         async def save(kwargs):
             #一秒内会有多次通知,将一秒内的通知都收集在一起,一次性写入数据库,约一秒写一次,提高数据库性能
             dlist = self.d_orderbook_map[orderbook.symbol]
