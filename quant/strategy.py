@@ -367,3 +367,9 @@ class Strategy(ExchangeGateway.ICallBack):
             error: If execute failed, return error information, otherwise it's None.
         """
         return await gateway.invalid_indicate(symbol, indicate_type)
+    
+    def stop(self):
+        """ 停止策略
+        """
+        from quant.quant import quant
+        quant.stop()

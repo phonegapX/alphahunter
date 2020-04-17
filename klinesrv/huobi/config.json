@@ -1,0 +1,36 @@
+{
+    "RABBITMQ": {
+        "host": "127.0.0.1",
+        "port": 5672,
+        "username": "guest",
+        "password": "guest"
+    },
+    "LOG": {
+        "console": true,
+        "level": "WARN",
+        "path": "C:/Users/Administrator/Desktop/log",
+        "name": "quant_huobi_klinesrv.log",
+        "clear": false,
+        "backup_count": 5
+    },
+    "PLATFORMS": [
+        {
+            "platform": "huobi"
+        }
+    ],
+    "MARKETS": {
+        "huobi": {
+            "symbols": [
+                "btcusdt"
+            ]
+        }
+    },
+    "MONGODB": {
+        "host": "127.0.0.1",
+        "port": 27017,
+        "username": "root",
+        "password": "123456",
+        "dbname": "admin"
+    },
+    "strategy": "huobi_klinesrv"
+}

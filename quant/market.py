@@ -150,7 +150,7 @@ class Kline:
     """
 
     def __init__(self, platform=None, symbol=None, open=None, high=None, low=None, close=None, volume=None,
-                 timestamp=None, kline_type=None):
+                 timestamp=None, kline_type=None, **kwargs):
         """ Initialize. """
         self.platform = platform
         self.symbol = symbol
@@ -161,6 +161,8 @@ class Kline:
         self.volume = volume
         self.timestamp = timestamp
         self.kline_type = kline_type
+        for (k, v) in kwargs.items(): #如果是自合成K线的话就填充剩余字段
+            setattr(self, k, v)
 
     @property
     def data(self):
@@ -175,6 +177,9 @@ class Kline:
             "timestamp": self.timestamp,
             "kline_type": self.kline_type
         }
+        for (k, v) in vars(self).items(): #如果是自合成K线的话就填充剩余字段
+            if not k.startswith('__') and k not in d:
+                d[k] = v
         return d
 
     def __str__(self):
@@ -183,6 +188,11 @@ class Kline:
 
     def __repr__(self):
         return str(self)
+
+    def is_custom(self):
+        """ 判断是自合成K线还是交易所提供的K线
+        """
+        return hasattr(self, "usable")
 
 
 class Market:

@@ -297,7 +297,7 @@ class EventKline(Event):
     """
 
     def __init__(self, platform=None, symbol=None, open=None, high=None, low=None, close=None, volume=None,
-                 timestamp=None, kline_type=None):
+                 timestamp=None, kline_type=None, **kwargs):
         """Initialize."""
         if kline_type == const.MARKET_TYPE_KLINE:
             name = "EVENT_KLINE"
@@ -326,6 +326,7 @@ class EventKline(Event):
             "timestamp": timestamp,
             "kline_type": kline_type
         }
+        data.update(kwargs) #如果是自合成K线的话就填充剩余字段
         super(EventKline, self).__init__(name, exchange, queue, routing_key, data=data)
 
     def parse(self):

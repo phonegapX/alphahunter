@@ -11,6 +11,7 @@ Description: Asynchronous driven quantitative trading framework
 
 import copy
 
+import pymongo
 import motor.motor_asyncio
 from bson.objectid import ObjectId
 from urllib.parse import quote_plus
@@ -71,6 +72,10 @@ class MongoDB(object):
             logger.error("mongodb connection ERROR:", e)
         finally:
             SingleTask.call_later(cls._check_connection, 2) #开启下一轮检测
+
+    @classmethod
+    def is_connected(cls):
+        return cls._connected
 
     def __init__(self, db, collection):
         """ Initialize. """
@@ -348,6 +353,29 @@ class MongoDB(object):
         result = await cursor.find_one_and_delete(spec, projection=fields)
         #if result and "_id" in result:
         #    result["_id"] = str(result["_id"])
+        return result, None
+
+    @forestall
+    async def create_index(self, fields, cursor=None):
+        """ Creates an index on this collection.
+
+        Args:
+            fields: The fields to be create.
+            cursor: Query cursor, default is `self._cursor`.
+
+        Return:
+            result: Result.
+        """
+        if not cursor:
+            cursor = self._cursor
+        param = []
+        for (k, v) in fields.items():
+            if v == 1:
+                x = (k, pymongo.ASCENDING)
+            else:
+                x = (k, pymongo.DESCENDING)
+            param.append(x)
+        result = await cursor.create_index(param, background=True)
         return result, None
 
     def _convert_id_object(self, origin):
