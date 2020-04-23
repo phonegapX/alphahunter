@@ -18,6 +18,8 @@ class State:
     STATE_CODE_RECONNECTING = 5     #重新连接中
     STATE_CODE_READY = 6            #策略环境准备好
     STATE_CODE_GENERAL_ERROR = 7    #一般常规错误
+    STATE_CODE_DB_SUCCESS = 8       #数据库连接成功
+    STATE_CODE_DB_ERROR = 9         #数据库连接失败
 
     def __init__(self, platform, account, msg, code = STATE_CODE_PARAM_MISS):
         self._platform = platform

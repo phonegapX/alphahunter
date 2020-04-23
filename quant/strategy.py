@@ -19,6 +19,7 @@ from quant.order import Order, Fill, ORDER_TYPE_LIMIT
 from quant.portfoliomanager import PortfolioManager
 from quant.trader import Trader
 from quant.tasks import LoopRunTask, SingleTask
+from quant.utils.mongo import MongoDB
 from quant.state import State
 from quant import const
 
@@ -40,6 +41,8 @@ class Strategy(ExchangeGateway.ICallBack):
         self._original_on_order_update_callback = None
         self._original_on_fill_update_callback = None
         self._hook_strategy()
+        #注册数据库连接状态通知回调
+        MongoDB.register_state_callback(self.on_state_update_callback)
     
     def _hook_strategy(self):
         """Hook策略相应账户各种私有数据的通知回调函数,这样策略执行后,资产,仓位,订单,成交等数据发生变化时,

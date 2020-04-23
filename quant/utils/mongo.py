@@ -19,6 +19,7 @@ from functools import wraps
 
 from quant.utils import tools, logger
 from quant.tasks import LoopRunTask, SingleTask
+from quant.state import State
 
 
 __all__ = ("MongoDB", )
@@ -36,6 +37,8 @@ class MongoDB(object):
 
     _mongo_client = None
     _connected = False
+    _state_cbs = []
+    _last_state = False
 
     @classmethod
     def mongodb_init(cls, host="127.0.0.1", port=27017, username="", password="", dbname="admin"):
@@ -72,10 +75,23 @@ class MongoDB(object):
             logger.error("mongodb connection ERROR:", e)
         finally:
             SingleTask.call_later(cls._check_connection, 2) #开启下一轮检测
+            #数据库连接状态通知上层策略
+            if cls._last_state != cls.is_connected(): #状态发生变化
+                cls._last_state = cls.is_connected()
+                if cls._last_state:
+                    state = State(None, None, "mongodb connection SUCCESS", State.STATE_CODE_DB_SUCCESS)
+                else:
+                    state = State(None, None, "mongodb connection ERROR", State.STATE_CODE_DB_ERROR)
+                for cb in cls._state_cbs:
+                    SingleTask.run(cb, state)
 
     @classmethod
     def is_connected(cls):
         return cls._connected
+
+    @classmethod
+    def register_state_callback(cls, func):
+        cls._state_cbs.append(func)
 
     def __init__(self, db, collection):
         """ Initialize. """
@@ -165,7 +181,9 @@ class MongoDB(object):
         Return:
             data: Document or None.
         """
-        data = await self.get_list(spec, fields, sort, limit=1, cursor=cursor)
+        data, e = await self.get_list(spec, fields, sort, limit=1, cursor=cursor)
+        if e:
+            return None, e
         if data:
             return data[0], None
         else:

@@ -44,11 +44,15 @@ class CreateIndex(Strategy):
         self.symbols = config.markets[self.platform]["symbols"]
 
         #连接数据库
+        self.t_depth_map = defaultdict(lambda:None)
         self.t_trade_map = defaultdict(lambda:None)
         self.t_kline_map = defaultdict(lambda:None)
         if config.mongodb:
             for sym in self.symbols:
                 postfix = sym.replace('-','').replace('_','').replace('/','').lower() #将所有可能的情况转换为我们自定义的数据库表名规则
+                #订单薄
+                name = "t_orderbook_{}_{}".format(self.platform, postfix).lower()
+                self.t_depth_map[sym] = MongoDB("db_market", name)
                 #逐笔成交
                 name = "t_trade_{}_{}".format(self.platform, postfix).lower()
                 self.t_trade_map[sym] = MongoDB("db_market", name)
@@ -62,6 +66,10 @@ class CreateIndex(Strategy):
         while not MongoDB.is_connected(): #等待数据库连接稳定
             await asyncio.sleep(1)
         for sym in self.symbols: #开始建立索引
+            t_depth = self.t_depth_map[sym]
+            s, e = await t_depth.create_index({'dt':1})
+            if e:
+                logger.error("create_index depth:", e, caller=self)
             t_trade = self.t_trade_map[sym]
             s, e = await t_trade.create_index({'dt':1})
             if e:
