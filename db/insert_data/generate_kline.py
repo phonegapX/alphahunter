@@ -105,6 +105,8 @@ def calculate(trade, kline, begin_timestamp):
             "prev_price_fillna": prev_kline.get("close_avg_fillna", 0.0),
             "lead_ret": None,
             "lag_ret": None,
+            "lead_ret_fillna": None,
+            "lag_ret_fillna": None,
             "usable": False
         }
 
@@ -208,19 +210,26 @@ def calculate(trade, kline, begin_timestamp):
         open_avg = kline_document["open_avg"]
         close_avg = kline_document["close_avg"]
         kline_document["open_avg_fillna"] = open_avg if open_avg else kline_document["open"]
-        kline_document["close_avg_fillna"] = close_avg if close_avg else kline_document["close"]
+        close_avg_fillna = close_avg if close_avg else kline_document["close"]
+        kline_document["close_avg_fillna"] = close_avg_fillna
 
         kline_document["lag_ret"] = math.log(kline_document["close_avg"] / prev_kline["close_avg"]) \
             if prev_kline["close_avg"] and kline_document["close_avg"] else None
+        kline_document["lag_ret_fillna"] = math.log(close_avg_fillna / prev_kline["close_avg_fillna"]) \
+            if prev_kline["close_avg_fillna"] and close_avg_fillna else None
 
         # "lead_ret": 0.0  # math.log(next_price / open_avg),
+        # "lead_ret_fillna": 0.0  # math.log(next_price_fillna / open_avg_fillna),
         open_avg = kline_document["open_avg"]
         open_avg_fillna = kline_document["open_avg_fillna"]
         lead_ret = math.log(open_avg / prev_kline["open_avg"]) if prev_kline.get("open_avg", 0.0) and open_avg else None
+        lead_ret_fillna = math.log(open_avg_fillna / prev_kline["open_avg_fillna"])\
+            if prev_kline.get("open_avg_fillna", 0.0) and open_avg_fillna else None
         prev_kline.update({
             "next_price": open_avg,
             "next_price_fillna": open_avg_fillna if open_avg_fillna else prev_kline["close_avg_fillna"],
             "lead_ret": lead_ret,
+            "lead_ret_fillna": lead_ret_fillna,
         })
 
         # 避免插入两天数据， 所以第一个采用update_one
