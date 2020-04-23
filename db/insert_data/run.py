@@ -20,8 +20,8 @@ LIMIT = 1000  # 批量插入条数限制
 
 # buy_or_sell 转换
 DIRECTION = {
-    "b": "buy",
-    "s": "sell",
+    "b": "BUY",
+    "s": "SELL",
 }
 
 # exchange name 转换
