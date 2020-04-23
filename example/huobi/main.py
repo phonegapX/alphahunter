@@ -81,7 +81,7 @@ class DemoStrategy(Strategy):
         """
         logger.info("on_state_update_callback:", state, caller=self)
         
-        if state.code == State.STATE_CODE_READY: #策略环境准备好
+        if state.code == State.STATE_CODE_READY: #交易接口准备好
             #收到此状态通知,证明底层环境一切准备就绪,策略可以开始工作
             #s, e = await self.create_order(self.gw, "eoseth", ORDER_ACTION_SELL, 0.02, 0.6)
             #s, e = await self.create_order(self.gw, "eoseth", ORDER_ACTION_SELL, 0, 8, ORDER_TYPE_MARKET)
@@ -104,9 +104,9 @@ class DemoStrategy(Strategy):
             pass #不需要过于关注此状态,因为底层接口会自动重新连接
         elif state.code == State.STATE_CODE_RECONNECTING:       #交易接口重新连接中
             pass #比如说可以记录重连次数,如果一段时间内一直在重连可能交易所出问题,可以酌情处理,如结束本策略进程等
-        elif state.code == State.STATE_CODE_PARAM_MISS:         #初始化过程缺少参数
+        elif state.code == State.STATE_CODE_PARAM_MISS:         #交易接口初始化过程缺少参数
             pass #收到此状态通知,证明无法正常初始化,应该结束本策略进程
-        elif state.code == State.STATE_CODE_GENERAL_ERROR:      #常规错误
+        elif state.code == State.STATE_CODE_GENERAL_ERROR:      #交易接口常规错误
             ... #策略进程运行过程中如果收到某些错误通知,可以根据实际情况判断,比如可以做一些策略善后工作,然后结束本策略进程
             return
 

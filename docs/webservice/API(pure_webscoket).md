@@ -630,13 +630,13 @@ order_type包括"LIMIT"和"MARKET"和"IOC".
 ## 状态通知
 在登录交易所过程中以及在正常运行过程中发生任何问题都会经此通知客户端,下面是相应状态码:
 
-    STATE_CODE_PARAM_MISS = 1       #参数丢失
-    STATE_CODE_CONNECT_SUCCESS = 2  #连接成功
-    STATE_CODE_CONNECT_FAILED = 3   #连接失败
-    STATE_CODE_DISCONNECT = 4       #连接断开
-    STATE_CODE_RECONNECTING = 5     #重新连接中
-    STATE_CODE_READY = 6            #策略环境准备好
-    STATE_CODE_GENERAL_ERROR = 7    #一般常规错误
+    STATE_CODE_PARAM_MISS = 1       #交易接口初始化过程缺少参数
+    STATE_CODE_CONNECT_SUCCESS = 2  #交易接口连接成功
+    STATE_CODE_CONNECT_FAILED = 3   #交易接口连接失败
+    STATE_CODE_DISCONNECT = 4       #交易接口连接断开
+    STATE_CODE_RECONNECTING = 5     #交易接口重新连接中
+    STATE_CODE_READY = 6            #交易接口准备好
+    STATE_CODE_GENERAL_ERROR = 7    #交易接口常规错误
 
 >通知示例
 

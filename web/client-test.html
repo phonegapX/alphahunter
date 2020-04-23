@@ -6,13 +6,13 @@
 </script>
   <script language="javascript" type="text/javascript">
     $(function() {
-      const STATE_CODE_PARAM_MISS = 1;       //参数丢失
-      const STATE_CODE_CONNECT_SUCCESS = 2;  //连接成功
-      const STATE_CODE_CONNECT_FAILED = 3;   //连接失败
-      const STATE_CODE_DISCONNECT = 4;       //连接断开
-      const STATE_CODE_RECONNECTING = 5;     //重新连接中
-      const STATE_CODE_READY = 6;            //策略环境准备好
-      const STATE_CODE_GENERAL_ERROR = 7;    //一般常规错误
+      const STATE_CODE_PARAM_MISS = 1;       //交易接口初始化过程缺少参数
+      const STATE_CODE_CONNECT_SUCCESS = 2;  //交易接口连接成功
+      const STATE_CODE_CONNECT_FAILED = 3;   //交易接口连接失败
+      const STATE_CODE_DISCONNECT = 4;       //交易接口连接断开
+      const STATE_CODE_RECONNECTING = 5;     //交易接口重新连接中
+      const STATE_CODE_READY = 6;            //交易接口准备好
+      const STATE_CODE_GENERAL_ERROR = 7;    //交易接口常规错误
       //...
       var token = null;
       var conn = null;
