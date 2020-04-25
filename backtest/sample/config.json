@@ -5,33 +5,33 @@
         "username": "guest",
         "password": "guest"
     },
-    "ACCOUNTS": [
+    "MONGODB": {
+        "host": "127.0.0.1",
+        "port": 27017,
+        "username": "root",
+        "password": "123456",
+        "dbname": "admin"
+    },
+    "PLATFORMS": [
         {
             "platform": "huobi",
             "account": "test",
             "access_key": "xxxxxxxxxxxx",
-            "secret_key": "xxxxxxxxxxxx"
+            "secret_key": "xxxxxxxxxxxx",
+            "symbols": ["btcusdt","ethusdt"]
         },
         {
             "platform": "huobi_future",
             "account": "test",
             "access_key": "xxxxxxxxxxxx",
-            "secret_key": "xxxxxxxxxxxx"
+            "secret_key": "xxxxxxxxxxxx",
+            "symbols": ["BTC191227","ETH191227"]
         }
     ],
-    "MARKETS": {
-        "huobi": {
-            "symbols": [
-                "eoseth",
-                "trxeth"
-            ]
-        },
-        "huobi_future": {
-            "symbols": [
-                "BTC191227",
-                "ETH191227"
-            ]
-        }
+    "BACKTEST": {
+        "start_time": "2020-04-20",
+        "period_day": "3",
+        "drive_type": ["kline","trade","orderbook"]
     },
     "strategy": "my_test_strategy"
 }

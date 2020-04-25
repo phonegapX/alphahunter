@@ -30,6 +30,8 @@ class Config:
             MARKETS: Market Server config list, default is {}.
             HEARTBEAT: Server heartbeat config, default is {}.
             PROXY: HTTP proxy config, default is None.
+            BACKTEST: Strategy backtest config, default is {}.
+            DATAMATRIX: Data matrix config, default is {}.
     """
 
     def __init__(self):
@@ -44,6 +46,8 @@ class Config:
         self.markets = {}
         self.heartbeat = {}
         self.proxy = None
+        self.backtest = {}
+        self.datamatrix = {}
 
     def register_run_time_update(self):
         """Subscribe EventConfig and that can update config in run-time dynamically."""
@@ -100,14 +104,16 @@ class Config:
         self.server_id = update_fields.get("SERVER_ID", tools.get_uuid1())
         self.run_time_update = update_fields.get("RUN_TIME_UPDATE", False)
         self.log = update_fields.get("LOG", {})
-        self.rabbitmq = update_fields.get("RABBITMQ", None)
-        self.mongodb = update_fields.get("MONGODB", None)
-        self.redis = update_fields.get("REDIS", None)
+        self.rabbitmq = update_fields.get("RABBITMQ", {})
+        self.mongodb = update_fields.get("MONGODB", {})
+        self.redis = update_fields.get("REDIS", {})
         self.platforms = update_fields.get("PLATFORMS", [])
         self.accounts = update_fields.get("ACCOUNTS", [])
         self.markets = update_fields.get("MARKETS", {})
         self.heartbeat = update_fields.get("HEARTBEAT", {})
         self.proxy = update_fields.get("PROXY", None)
+        self.backtest = update_fields.get("BACKTEST", {})
+        self.datamatrix = update_fields.get("DATAMATRIX", {})
 
         for k, v in update_fields.items():
             setattr(self, k, v)

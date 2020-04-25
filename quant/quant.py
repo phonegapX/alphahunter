@@ -86,7 +86,7 @@ class Quant:
 
     def _init_event_center(self):
         """Initialize event center."""
-        if config.rabbitmq:
+        if config.rabbitmq and not config.backtest and not config.datamatrix:
             from quant.event import EventCenter
             self.event_center = EventCenter()
             self.event_center.initialize()

@@ -131,7 +131,7 @@ class MongoDB(object):
         return wrap
 
     @forestall
-    async def get_list(self, spec=None, fields=None, sort=None, skip=0, limit=9999, cursor=None):
+    async def get_list(self, spec=None, fields=None, sort=None, skip=0, limit=99999, cursor=None):
         """ Get multiple document list.
 
         Args:

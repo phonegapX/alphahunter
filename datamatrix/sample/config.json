@@ -5,18 +5,23 @@
         "username": "guest",
         "password": "guest"
     },
+    "MONGODB": {
+        "host": "127.0.0.1",
+        "port": 27017,
+        "username": "root",
+        "password": "123456",
+        "dbname": "admin"
+    },
     "PLATFORMS": [
         {
-            "platform": "ftx"
+            "platform": "ftx",
+            "symbols": ["BTC-PERP","ETH-PERP"]
         }
     ],
-    "MARKETS": {
-        "ftx": {
-            "symbols": [
-                "BTC-PERP",
-                "ETH-PERP"
-            ]
-        }
+    "DATAMATRIX": {
+        "start_time": "2020-04-20",
+        "period_day": "3",
+        "drive_type": ["kline","trade","orderbook"]
     },
     "strategy": "datamatrix_demo"
 }

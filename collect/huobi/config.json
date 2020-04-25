@@ -5,6 +5,13 @@
         "username": "guest",
         "password": "guest"
     },
+    "MONGODB": {
+        "host": "127.0.0.1",
+        "port": 27017,
+        "username": "root",
+        "password": "123456",
+        "dbname": "admin"
+    },
     "LOG": {
         "console": true,
         "level": "WARN",
@@ -15,24 +22,9 @@
     },
     "PLATFORMS": [
         {
-            "platform": "huobi"
+            "platform": "huobi",
+            "symbols": ["btcusdt","ethusdt","eosusdt"]
         }
     ],
-    "MARKETS": {
-        "huobi": {
-            "symbols": [
-                "btcusdt",
-                "ethusdt",
-                "eosusdt"
-            ]
-        }
-    },
-    "MONGODB": {
-        "host": "127.0.0.1",
-        "port": 27017,
-        "username": "root",
-        "password": "123456",
-        "dbname": "admin"
-    },
     "strategy": "huobi_collect"
 }

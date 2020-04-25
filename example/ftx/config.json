@@ -5,28 +5,22 @@
         "username": "guest",
         "password": "guest"
     },
-    "ACCOUNTS": [
+    "PLATFORMS": [
         {
             "platform": "ftx",
             "account": "test",
             "access_key": "xxxxxxxxxxxx",
-            "secret_key": "xxxxxxxxxxxx"
+            "secret_key": "xxxxxxxxxxxx",
+            "symbols": ["BTC-PERP","ETH-PERP"]
         },
         {
             "platform": "ftx",
             "account": "test/SUBACC1",
             "access_key": "xxxxxxxxxxxx",
             "secret_key": "xxxxxxxxxxxx",
-            "subaccount_name": "subacc1"
+            "subaccount_name": "subacc1",
+            "symbols": ["BTC-PERP","ETH-PERP"]
         }
     ],
-    "MARKETS": {
-        "ftx": {
-            "symbols": [
-                "BTC-PERP",
-                "ETH-PERP"
-            ]
-        }
-    },
     "strategy": "my_test_strategy"
 }

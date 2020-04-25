@@ -39,11 +39,11 @@ class CarryBrickStrategy(Strategy):
         
         #=====================================================
         #创建[主交易所]交易接口
-        self.platform_main = config.accounts[0]["platform"]
-        self.account_main = config.accounts[0]["account"]
-        access_key = config.accounts[0]["access_key"]
-        secret_key = config.accounts[0]["secret_key"]
-        self.symbols_main = config.markets[self.platform_main]["symbols"]
+        self.platform_main = config.platforms[0]["platform"]
+        self.account_main = config.platforms[0]["account"]
+        access_key = config.platforms[0]["access_key"]
+        secret_key = config.platforms[0]["secret_key"]
+        self.symbols_main = config.platforms[0]["symbols"]
 
         #交易模块参数
         params = {
@@ -72,12 +72,12 @@ class CarryBrickStrategy(Strategy):
         
         #=====================================================
         #创建[从交易所]交易接口
-        self.platform_reference = config.accounts[1]["platform"]
-        self.account_reference = config.accounts[1]["account"]
-        access_key = config.accounts[1]["access_key"]
-        secret_key = config.accounts[1]["secret_key"]
-        passphrase = config.accounts[1]["passphrase"]
-        self.symbols_reference = config.markets[self.platform_reference]["symbols"]
+        self.platform_reference = config.platforms[1]["platform"]
+        self.account_reference = config.platforms[1]["account"]
+        access_key = config.platforms[1]["access_key"]
+        secret_key = config.platforms[1]["secret_key"]
+        passphrase = config.platforms[1]["passphrase"]
+        self.symbols_reference = config.platforms[1]["symbols"]
         
         #交易模块参数
         params = {

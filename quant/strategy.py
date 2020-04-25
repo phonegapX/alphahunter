@@ -22,6 +22,7 @@ from quant.tasks import LoopRunTask, SingleTask
 from quant.utils.mongo import MongoDB
 from quant.state import State
 from quant import const
+from quant.config import config
 
 
 class Strategy(ExchangeGateway.ICallBack):
@@ -34,12 +35,14 @@ class Strategy(ExchangeGateway.ICallBack):
     def __init__(self):
         """ 初始化
         """
+        self._just_once = False
         self._interval = 0
         self._pm = PortfolioManager()
         self._original_on_asset_update_callback = None
         self._original_on_position_update_callback = None
         self._original_on_order_update_callback = None
         self._original_on_fill_update_callback = None
+        self._original_on_state_update_callback = None
         self._hook_strategy()
         #注册数据库连接状态通知回调
         MongoDB.register_state_callback(self.on_state_update_callback)
@@ -60,6 +63,9 @@ class Strategy(ExchangeGateway.ICallBack):
         #Hook成交回调函数
         self._original_on_fill_update_callback = self.on_fill_update_callback
         self.on_fill_update_callback = self._on_fill_update_hook
+        #Hook状态变化回调函数
+        self._original_on_state_update_callback = self.on_state_update_callback
+        self.on_state_update_callback = self._on_state_update_callback
     
     async def _on_asset_update_hook(self, asset: Asset):
         """资产变化预处理
@@ -90,6 +96,18 @@ class Strategy(ExchangeGateway.ICallBack):
         #================
         self._pm.on_fill_update(fill)
         await self._original_on_fill_update_callback(fill)
+
+    async def _on_state_update_callback(self, state: State, **kwargs):
+        """ 状态变化(底层交易所接口,框架等)通知回调函数
+        """
+        if state.code == State.STATE_CODE_DB_SUCCESS: #数据库连接成功
+            if config.backtest or config.datamatrix: #如果是回测模式或者数据矩阵模式就开始喂历史数据
+                if not self._just_once: #保证只执行一次
+                    from quant.feed import HistoryDataFeed
+                    SingleTask.run(HistoryDataFeed.start)
+                    self._just_once = True
+        #-------------------------------------------------------------
+        await self._original_on_state_update_callback(state, **kwargs)
 
     @property
     def pm(self):
@@ -126,6 +144,13 @@ class Strategy(ExchangeGateway.ICallBack):
         Returns:
             交易网关实例
         """
+        #如果配置了回测模式参数或者数据矩阵参数就替换底层接口进入相应模式
+        if config.backtest:
+            kwargs["databind"] = kwargs["platform"]
+            kwargs["platform"] = const.BACKTEST
+        elif config.datamatrix:
+            kwargs["databind"] = kwargs["platform"]
+            kwargs["platform"] = const.DATAMATRIX
         
         class CB(ExchangeGateway.ICallBack):
             async def on_kline_update_callback(self, kline: Kline): pass
@@ -155,7 +180,7 @@ class Strategy(ExchangeGateway.ICallBack):
         #如果启用,就设置相对应的通知回调函数
         if kwargs["enable_kline_update"]:
             #直连交易所获取数据还是订阅自己搭建的消息队列服务器获取数据
-            if kwargs["direct_kline_update"]:
+            if kwargs["direct_kline_update"] or config.backtest or config.datamatrix:
                 cb.on_kline_update_callback = self.on_kline_update_callback
             else:
                 #从自己搭建的消息队列服务器订阅相对应的行情数据
@@ -165,7 +190,7 @@ class Strategy(ExchangeGateway.ICallBack):
         #如果启用,就设置相对应的通知回调函数
         if kwargs["enable_orderbook_update"]:
             #直连交易所获取数据还是订阅自己搭建的消息队列服务器获取数据
-            if kwargs["direct_orderbook_update"]:
+            if kwargs["direct_orderbook_update"] or config.backtest or config.datamatrix:
                 cb.on_orderbook_update_callback = self.on_orderbook_update_callback
             else:
                 #从自己搭建的消息队列服务器订阅相对应的行情数据
@@ -175,7 +200,7 @@ class Strategy(ExchangeGateway.ICallBack):
         #如果启用,就设置相对应的通知回调函数
         if kwargs["enable_trade_update"]:
             #直连交易所获取数据还是订阅自己搭建的消息队列服务器获取数据
-            if kwargs["direct_trade_update"]:
+            if kwargs["direct_trade_update"] or config.backtest or config.datamatrix:
                 cb.on_trade_update_callback = self.on_trade_update_callback
             else:
                 #从自己搭建的消息队列服务器订阅相对应的行情数据
@@ -185,7 +210,7 @@ class Strategy(ExchangeGateway.ICallBack):
         #如果启用,就设置相对应的通知回调函数
         if kwargs["enable_ticker_update"]:
             #直连交易所获取数据还是订阅自己搭建的消息队列服务器获取数据
-            if kwargs["direct_ticker_update"]:
+            if kwargs["direct_ticker_update"] or config.backtest or config.datamatrix:
                 cb.on_ticker_update_callback = self.on_ticker_update_callback
             else:
                 #从自己搭建的消息队列服务器订阅相对应的行情数据

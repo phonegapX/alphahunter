@@ -5,6 +5,13 @@
         "username": "guest",
         "password": "guest"
     },
+    "MONGODB": {
+        "host": "127.0.0.1",
+        "port": 27017,
+        "username": "root",
+        "password": "123456",
+        "dbname": "admin"
+    },
     "LOG": {
         "console": true,
         "level": "WARN",
@@ -15,24 +22,9 @@
     },
     "PLATFORMS": [
         {
-            "platform": "ftx"
+            "platform": "ftx",
+            "symbols": ["BTC-PERP","ETH-PERP","ETH/USD"]
         }
     ],
-    "MARKETS": {
-        "ftx": {
-            "symbols": [
-                "BTC-PERP",
-                "ETH-PERP",
-                "ETH/USD"
-            ]
-        }
-    },
-    "MONGODB": {
-        "host": "127.0.0.1",
-        "port": 27017,
-        "username": "root",
-        "password": "123456",
-        "dbname": "admin"
-    },
     "strategy": "ftx_collect"
 }

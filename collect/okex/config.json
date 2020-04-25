@@ -5,6 +5,13 @@
         "username": "guest",
         "password": "guest"
     },
+    "MONGODB": {
+        "host": "127.0.0.1",
+        "port": 27017,
+        "username": "root",
+        "password": "123456",
+        "dbname": "admin"
+    },
     "PROXY": "http://127.0.0.1:6666",
     "LOG": {
         "console": true,
@@ -16,24 +23,9 @@
     },
     "PLATFORMS": [
         {
-            "platform": "okex"
+            "platform": "okex",
+            "symbols": ["BTC-USDT","ETH-USDT","EOS-USDT"]
         }
     ],
-    "MARKETS": {
-        "okex": {
-            "symbols": [
-                "BTC-USDT",
-                "ETH-USDT",
-                "EOS-USDT"
-            ]
-        }
-    },
-    "MONGODB": {
-        "host": "127.0.0.1",
-        "port": 27017,
-        "username": "root",
-        "password": "123456",
-        "dbname": "admin"
-    },
     "strategy": "okex_collect"
 }

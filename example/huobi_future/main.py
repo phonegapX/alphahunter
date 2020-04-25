@@ -38,11 +38,11 @@ class DemoStrategy(Strategy):
         
         #=====================================================
         #创建交易网关
-        self.platform = config.accounts[0]["platform"]
-        self.account = config.accounts[0]["account"]
-        self.access_key = config.accounts[0]["access_key"]
-        self.secret_key = config.accounts[0]["secret_key"]
-        self.symbols = config.markets[self.platform]["symbols"]
+        self.platform = config.platforms[0]["platform"]
+        self.account = config.platforms[0]["account"]
+        self.access_key = config.platforms[0]["access_key"]
+        self.secret_key = config.platforms[0]["secret_key"]
+        self.symbols = config.platforms[0]["symbols"]
         # 交易模块参数
         params = {
             "strategy": self.strategy,

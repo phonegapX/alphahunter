@@ -1,18 +1,4 @@
 {
-    "PLATFORMS": [
-        {
-            "platform": "huobi"
-        }
-    ],
-    "MARKETS": {
-        "huobi": {
-            "symbols": [
-                "btcusdt",
-                "ethusdt",
-                "eosusdt"
-            ]
-        }
-    },
     "MONGODB": {
         "host": "127.0.0.1",
         "port": 27017,
@@ -20,5 +6,11 @@
         "password": "123456",
         "dbname": "admin"
     },
+    "PLATFORMS": [
+        {
+            "platform": "huobi",
+            "symbols": ["btcusdt","ethusdt","eosusdt"]
+        }
+    ],
     "strategy": "huobi_create_index"
 }

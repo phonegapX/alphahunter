@@ -129,3 +129,16 @@ class DataMatrixTrader(HistoryDataFeed, ExchangeGateway):
             error: Error information, otherwise it's None.
         """
         raise NotImplementedError #datamatrix模块不需要此功能
+
+    async def invalid_indicate(self, symbol, indicate_type):
+        """ update (an) callback function.
+
+        Args:
+            symbol: Trade target
+            indicate_type: INDICATE_ORDER, INDICATE_ASSET, INDICATE_POSITION
+
+        Returns:
+            success: If execute successfully, return True, otherwise it's False.
+            error: If execute failed, return error information, otherwise it's None.
+        """
+        raise NotImplementedError #datamatrix模块不需要此功能

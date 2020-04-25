@@ -40,7 +40,7 @@ class klinesrv(Strategy):
         
         self.strategy = config.strategy
         self.platform = config.platforms[0]["platform"]
-        self.symbols = config.markets[self.platform]["symbols"]
+        self.symbols = config.platforms[0]["symbols"]
 
         #连接数据库
         self.t_trade_map = defaultdict(lambda:None)

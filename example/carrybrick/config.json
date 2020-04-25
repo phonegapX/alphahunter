@@ -14,28 +14,22 @@
         "backup_count": 5
     },
     "PROXY": "http://127.0.0.1:6666",
-    "ACCOUNTS": [
+    "PLATFORMS": [
         {
             "platform": "huobi",
             "account": "test",
             "access_key": "xxxxxxxxxxxx",
-            "secret_key": "xxxxxxxxxxxx"
+            "secret_key": "xxxxxxxxxxxx",
+            "symbols": ["ethusdt"]
         },
         {
             "platform": "okex",
             "account": "test",
             "access_key": "xxxxxxxxxxxx",
             "secret_key": "xxxxxxxxxxxx",
-            "passphrase": "mytest"
-        }
-    ],
-    "MARKETS": {
-        "huobi": {
-            "symbols": ["ethusdt"]
-        },
-        "okex": {
+            "passphrase": "mytest",
             "symbols": ["ETH-USDT"]
         }
-    },
+    ],
     "strategy": "carrybrick"
 }

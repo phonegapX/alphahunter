@@ -6,19 +6,15 @@
         "password": "guest"
     },
     "PROXY": "http://127.0.0.1:6666",
-    "ACCOUNTS": [
+    "PLATFORMS": [
         {
             "platform": "okex",
             "account": "test",
             "access_key": "xxxxxxxxxxxx",
             "secret_key": "xxxxxxxxxxxx",
-            "passphrase": "mytest"
-        }
-    ],
-    "MARKETS": {
-        "okex": {
+            "passphrase": "mytest",
             "symbols": ["ETH-USDT", "BTC-USDT"]
         }
-    },
+    ],
     "strategy": "my_test_strategy"
 }

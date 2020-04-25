@@ -37,7 +37,7 @@ class Collect(Strategy):
         
         self.strategy = config.strategy
         self.platform = config.platforms[0]["platform"]
-        self.symbols = config.markets[self.platform]["symbols"]
+        self.symbols = config.platforms[0]["symbols"]
         # 接口参数
         params = {
             "strategy": self.strategy,

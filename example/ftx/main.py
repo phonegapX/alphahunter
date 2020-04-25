@@ -38,11 +38,11 @@ class DemoStrategy(Strategy):
         
         #=====================================================
         #创建第一个交易接口
-        self.platform = config.accounts[0]["platform"]
-        self.account = config.accounts[0]["account"]
-        self.access_key = config.accounts[0]["access_key"]
-        self.secret_key = config.accounts[0]["secret_key"]
-        self.symbols = config.markets[self.platform]["symbols"]
+        self.platform = config.platforms[0]["platform"]
+        self.account = config.platforms[0]["account"]
+        self.access_key = config.platforms[0]["access_key"]
+        self.secret_key = config.platforms[0]["secret_key"]
+        self.symbols = config.platforms[0]["symbols"]
         # 交易模块参数
         params = {
             "strategy": self.strategy,
@@ -70,12 +70,12 @@ class DemoStrategy(Strategy):
         
         #=====================================================
         #创建第二个交易接口
-        self.platform2 = config.accounts[1]["platform"]
-        self.account2 = config.accounts[1]["account"]
-        self.access_key2 = config.accounts[1]["access_key"]
-        self.secret_key2 = config.accounts[1]["secret_key"]
-        self.subaccount_name2 = config.accounts[1]["subaccount_name"]
-        self.symbols2 = config.markets[self.platform2]["symbols"]
+        self.platform2 = config.platforms[1]["platform"]
+        self.account2 = config.platforms[1]["account"]
+        self.access_key2 = config.platforms[1]["access_key"]
+        self.secret_key2 = config.platforms[1]["secret_key"]
+        self.subaccount_name2 = config.platforms[1]["subaccount_name"]
+        self.symbols2 = config.platforms[1]["symbols"]
         # 交易模块参数
         params2 = {
             "strategy": self.strategy,

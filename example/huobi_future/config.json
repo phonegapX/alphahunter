@@ -5,27 +5,21 @@
         "username": "guest",
         "password": "guest"
     },
-    "ACCOUNTS": [
+    "PLATFORMS": [
         {
             "platform": "huobi_future",
             "account": "test/subacc2",
             "access_key": "xxxxxxxxxxxx",
-            "secret_key": "xxxxxxxxxxxx"
+            "secret_key": "xxxxxxxxxxxx",
+            "symbols": ["BTC191227","ETH191227"]
         },
         {
             "platform": "huobi_future",
             "account": "test",
             "access_key": "xxxxxxxxxxxx",
-            "secret_key": "xxxxxxxxxxxx"
+            "secret_key": "xxxxxxxxxxxx",
+            "symbols": ["BTC191227","ETH191227"]
         }
     ],
-    "MARKETS": {
-        "huobi_future": {
-            "symbols": [
-                "BTC191227",
-                "ETH191227"
-            ]
-        }
-    },
     "strategy": "my_test_strategy"
 }

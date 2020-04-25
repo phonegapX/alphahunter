@@ -5,6 +5,13 @@
         "username": "guest",
         "password": "guest"
     },
+    "MONGODB": {
+        "host": "127.0.0.1",
+        "port": 27017,
+        "username": "root",
+        "password": "123456",
+        "dbname": "admin"
+    },
     "LOG": {
         "console": true,
         "level": "WARN",
@@ -15,26 +22,9 @@
     },
     "PLATFORMS": [
         {
-            "platform": "huobi_future"
+            "platform": "huobi_future",
+            "symbols": ["BTC200626","ETH200626","EOS200626","LTC200626","BCH200626"]
         }
     ],
-    "MARKETS": {
-        "huobi_future": {
-            "symbols": [
-                "BTC200626",
-                "ETH200626",
-                "EOS200626",
-                "LTC200626",
-                "BCH200626"
-            ]
-        }
-    },
-    "MONGODB": {
-        "host": "127.0.0.1",
-        "port": 27017,
-        "username": "root",
-        "password": "123456",
-        "dbname": "admin"
-    },
     "strategy": "huobi_future_collect"
 }

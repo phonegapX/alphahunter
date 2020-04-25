@@ -5,27 +5,21 @@
         "username": "guest",
         "password": "guest"
     },
-    "ACCOUNTS": [
+    "PLATFORMS": [
         {
             "platform": "huobi",
             "account": "test/subacc2",
             "access_key": "xxxxxxxxxxxx",
-            "secret_key": "xxxxxxxxxxxx"
+            "secret_key": "xxxxxxxxxxxx",
+            "symbols": ["eoseth","trxeth"]
         },
         {
             "platform": "huobi",
             "account": "test",
             "access_key": "xxxxxxxxxxxx",
-            "secret_key": "xxxxxxxxxxxx"
+            "secret_key": "xxxxxxxxxxxx",
+            "symbols": ["eoseth","trxeth"]
         }
     ],
-    "MARKETS": {
-        "huobi": {
-            "symbols": [
-                "eoseth",
-                "trxeth"
-            ]
-        }
-    },
     "strategy": "my_test_strategy"
 }

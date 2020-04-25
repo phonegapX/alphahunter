@@ -34,6 +34,7 @@ from quant.order import LIQUIDITY_TYPE_MAKER, LIQUIDITY_TYPE_TAKER
 from quant.order import ORDER_STATUS_SUBMITTED, ORDER_STATUS_PARTIAL_FILLED, ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED, ORDER_STATUS_FAILED
 from quant.market import Kline, Orderbook, Trade, Ticker
 from quant.feed import HistoryDataFeed
+from quant.interface.model_api import ModelAPI
 
 
 __all__ = ("BacktestTrader",)
@@ -47,27 +48,51 @@ class BacktestTrader(HistoryDataFeed, ExchangeGateway):
         """Initialize."""
         self.cb = kwargs["cb"]
         state = None
-        if not kwargs.get("strategy"):
-            state = State("param strategy miss")
-        elif not kwargs.get("symbols"):
-            state = State("param symbols miss")
-        elif not kwargs.get("platform"):
-            state = State("param platform miss")
-        elif not kwargs.get("databind"):
-            state = State("param databind miss")
-            
-        if state:
-            logger.error(state, caller=self)
-            SingleTask.run(self.cb.on_state_update_callback, state)
-            return
 
-        self._strategy = kwargs["strategy"]
-        self._databind = kwargs["databind"]
-        self._symbols = kwargs["symbols"]
+        self._platform = kwargs.get("databind")
+        self._symbols = kwargs.get("symbols")
+        self._strategy = kwargs.get("strategy")
+
+        if not self._platform:
+            state = State(self._platform, "backtest", "param platform miss")
+        elif not self._symbols:
+            state = State(self._platform, "backtest", "param symbols miss")
+        elif not self._strategy:
+            state = State(self._platform, "backtest", "param strategy miss")
 
         super(BacktestTrader, self).__init__(**kwargs)
-      
-        
+
+
+    async def load_data(self, drive_type, begin_time, end_time):
+        """
+        """
+        if drive_type == "kline":
+            pd_list = []
+            for symbol in self._symbols:
+                r = await ModelAPI.get_klines_between(self._platform, symbol, begin_time, end_time)
+                #1.将r转换成pandas
+                #2.然后添加3列，一列为drive_type，一列为symbol,一列为当前类的self值，然后将从begin_dt这一列复制一个新列，名字叫做dt,方便以后排序
+                #3.pd_list.append(pandas)
+            #将pd_list的所有pandas按行合并成一个大的pandas
+            #然后return这个大的pandas
+        elif drive_type == "trade":
+            for symbol in self._symbols:
+                r = await ModelAPI.get_trades_between(self._platform, symbol, begin_time, end_time)
+                #1.将r转换成pandas
+                #2.然后添加3列，一列为drive_type，一列为symbol,一列为当前类的self值
+                #3.pd_list.append(pandas)
+            #将pd_list的所有pandas按行合并成一个大的pandas
+            #然后return这个大的pandas
+        elif drive_type == "orderbook":
+            for symbol in self._symbols:
+                r = await ModelAPI.get_orderbooks_between(self._platform, symbol, begin_time, end_time)
+                #1.将r转换成pandas
+                #2.然后添加3列，一列为drive_type，一列为symbol,一列为当前类的self值
+                #3.pd_list.append(pandas)
+            #将pd_list的所有pandas按行合并成一个大的pandas
+            #然后return这个大的pandas
+
+
 
     
     async def create_order(self, symbol, action, price, quantity, order_type=ORDER_TYPE_LIMIT, *args, **kwargs):
@@ -140,4 +165,16 @@ class BacktestTrader(HistoryDataFeed, ExchangeGateway):
         Returns:
             symbol_info: SymbolInfo if successfully, otherwise it's None.
             error: Error information, otherwise it's None.
+        """
+
+    async def invalid_indicate(self, symbol, indicate_type):
+        """ update (an) callback function.
+
+        Args:
+            symbol: Trade target
+            indicate_type: INDICATE_ORDER, INDICATE_ASSET, INDICATE_POSITION
+
+        Returns:
+            success: If execute successfully, return True, otherwise it's False.
+            error: If execute failed, return error information, otherwise it's None.
         """

@@ -33,14 +33,13 @@ class DataMatrixDemo(Strategy):
         """ 初始化
         """
         super(DataMatrixDemo, self).__init__()
-        
+
         platform = config.platforms[0]["platform"] #交易所
-        symbols = config.markets[platform]["symbols"]
+        symbols = config.platforms[0]["symbols"]
         # 交易模块参数
         params = {
             "strategy": config.strategy,
-            "platform": const.DATAMATRIX, #接入datamatrix平台
-            "databind": platform, #代表datamatrix所用历史数据所属交易所
+            "platform": platform,
             "symbols": symbols,
 
             "enable_kline_update": True,
@@ -52,12 +51,12 @@ class DataMatrixDemo(Strategy):
             "enable_position_update": False,
             "enable_asset_update": False,
 
-            "direct_kline_update": True, #接入datamatrix平台,必须为True
-            "direct_orderbook_update": True, #接入datamatrix平台,必须为True
-            "direct_trade_update": True, #接入datamatrix平台,必须为True
-            "direct_ticker_update": True #接入datamatrix平台,必须为True
+            "direct_kline_update": True,
+            "direct_orderbook_update": True,
+            "direct_trade_update": True,
+            "direct_ticker_update": True
         }
-        self.trader = self.create_gateway(**params)
+        self.gw = self.create_gateway(**params)
 
     async def on_state_update_callback(self, state: State, **kwargs):
         """ 状态变化(底层交易所接口,框架等)通知回调函数
