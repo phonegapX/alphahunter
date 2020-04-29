@@ -68,21 +68,21 @@ class DataMatrixDemo(Strategy):
         """
         logger.info("kline:", kline, caller=self)
         # add some logic and calculations here.
-        # await add_row(Row)        
+        # await add_row(Row)
 
     async def on_orderbook_update_callback(self, orderbook: Orderbook):
         """ 订单薄更新
         """
         logger.info("orderbook:", orderbook, caller=self)
         # add some logic and calculations here.
-        # await add_row(Row)        
+        # await add_row(Row)
 
     async def on_trade_update_callback(self, trade: Trade):
         """ 市场最新成交更新
         """
         logger.info("trade:", trade, caller=self)
         # add some logic and calculations here.
-        # await add_row(Row)        
+        # await add_row(Row)
 
     async def on_ticker_update_callback(self, ticker: Ticker):
         """ 市场行情tick更新

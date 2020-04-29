@@ -14,6 +14,8 @@ import json
 import copy
 import hmac
 import base64
+import numpy as np
+import pandas as pd
 from urllib.parse import urljoin
 from collections import defaultdict, deque
 from typing import DefaultDict, Deque, List, Dict, Tuple, Optional, Any
@@ -34,7 +36,7 @@ from quant.order import LIQUIDITY_TYPE_MAKER, LIQUIDITY_TYPE_TAKER
 from quant.order import ORDER_STATUS_SUBMITTED, ORDER_STATUS_PARTIAL_FILLED, ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED, ORDER_STATUS_FAILED
 from quant.market import Kline, Orderbook, Trade, Ticker
 from quant.feed import HistoryDataFeed
-from quant.interface.model_api import ModelAPI
+from quant.interface.infra_api import InfraAPI
 
 
 __all__ = ("BacktestTrader",)
@@ -62,38 +64,100 @@ class BacktestTrader(HistoryDataFeed, ExchangeGateway):
 
         super(BacktestTrader, self).__init__(**kwargs)
 
-
     async def load_data(self, drive_type, begin_time, end_time):
-        """
+        """ 从数据库中读取历史数据
         """
         if drive_type == "kline":
             pd_list = []
             for symbol in self._symbols:
-                r = await ModelAPI.get_klines_between(self._platform, symbol, begin_time, end_time)
+                r = await InfraAPI.get_klines_between(self._platform, symbol, begin_time, end_time)
                 #1.将r转换成pandas
-                #2.然后添加3列，一列为drive_type，一列为symbol,一列为当前类的self值，然后将从begin_dt这一列复制一个新列，名字叫做dt,方便以后排序
+                #2.然后添加3列,一列为drive_type,一列为symbol,一列为当前类的self值,然后将从begin_dt这一列复制一个新列,名字叫做dt,方便以后统一排序
                 #3.pd_list.append(pandas)
+                df = pd.DataFrame(r)
+                df["drive_type"] = drive_type
+                df["symbol"] = symbol
+                df["gw"] = self
+                df["dt"] = df["begin_dt"]
+                del df["_id"]
+                pd_list.append(df)
             #将pd_list的所有pandas按行合并成一个大的pandas
             #然后return这个大的pandas
+            return pd.concat(pd_list)
         elif drive_type == "trade":
+            pd_list = []
             for symbol in self._symbols:
-                r = await ModelAPI.get_trades_between(self._platform, symbol, begin_time, end_time)
+                r = await InfraAPI.get_trades_between(self._platform, symbol, begin_time, end_time)
                 #1.将r转换成pandas
-                #2.然后添加3列，一列为drive_type，一列为symbol,一列为当前类的self值
+                #2.然后添加3列,一列为drive_type,一列为symbol,一列为当前类的self值
                 #3.pd_list.append(pandas)
+                df = pd.DataFrame(r)
+                df["drive_type"] = drive_type
+                df["symbol"] = symbol
+                df["gw"] = self
+                del df["_id"]
+                pd_list.append(df)
             #将pd_list的所有pandas按行合并成一个大的pandas
             #然后return这个大的pandas
+            return pd.concat(pd_list)
         elif drive_type == "orderbook":
+            pd_list = []
             for symbol in self._symbols:
-                r = await ModelAPI.get_orderbooks_between(self._platform, symbol, begin_time, end_time)
+                r = await InfraAPI.get_orderbooks_between(self._platform, symbol, begin_time, end_time)
                 #1.将r转换成pandas
-                #2.然后添加3列，一列为drive_type，一列为symbol,一列为当前类的self值
+                #2.然后添加3列,一列为drive_type,一列为symbol,一列为当前类的self值
                 #3.pd_list.append(pandas)
+                df = pd.DataFrame(r)
+                df["drive_type"] = drive_type
+                df["symbol"] = symbol
+                df["gw"] = self
+                del df["_id"]
+                pd_list.append(df)
             #将pd_list的所有pandas按行合并成一个大的pandas
             #然后return这个大的pandas
+            return pd.concat(pd_list)
 
-
-
+    async def feed(self, row):
+        """ 通过历史数据驱动策略进行回测
+        """
+        drive_type = row["drive_type"] #数据驱动方式
+        if drive_type == "kline":
+            row = row.dropna()
+            kw = row.to_dict()
+            del kw["drive_type"]
+            del kw["gw"]
+            del kw["dt"]
+            kw["platform"] = self._platform
+            kw["timestamp"] = int(kw["begin_dt"])
+            kw["kline_type"] = MARKET_TYPE_KLINE
+            kline = Kline(**kw)
+            await self.cb.on_kline_update_callback(kline)
+        elif drive_type == "trade":
+            kw = {
+                "platform": self._platform,
+                "symbol": row["symbol"],
+                "action": row["direction"],
+                "price": row["tradeprice"],
+                "quantity": row["volume"],
+                "timestamp": int(row["tradedt"])
+            }
+            trade = Trade(**kw)
+            await self.cb.on_trade_update_callback(trade)
+        elif drive_type == "orderbook":
+            asks = []
+            bids = []
+            for i in range(1, 20+1):
+                asks.append([row[f'askprice{i}'], row[f'asksize{i}']])
+                bids.append([row[f'bidprice{i}'], row[f'bidsize{i}']])
+            kw = {
+                "platform": self._platform,
+                "symbol": row["symbol"],
+                "asks": asks,
+                "bids": bids,
+                "timestamp": int(row["pubdt"])
+            }
+            ob = Orderbook(**kw)
+            await self.cb.on_orderbook_update_callback(ob)
     
     async def create_order(self, symbol, action, price, quantity, order_type=ORDER_TYPE_LIMIT, *args, **kwargs):
         """ Create an order.

@@ -25,6 +25,7 @@ from quant.trader import Trader
 from quant.strategy import Strategy
 from quant.utils.decorator import async_method_locker
 from quant.startup import default_main
+from quant.interface.model_api import ModelAPI
 
 
 class DemoStrategy(Strategy):
@@ -68,35 +69,35 @@ class DemoStrategy(Strategy):
         
         #=====================================================
         #创建第二个交易接口
-        platform = config.platforms[1]["platform"] #交易所
-        account = config.platforms[1]["account"] #此参数回测盘不用,不过为了统一都写上不影响
-        access_key = config.platforms[1]["access_key"] #此参数回测盘不用,不过为了统一都写上不影响
-        secret_key = config.platforms[1]["secret_key"] #此参数回测盘不用,不过为了统一都写上不影响
-        symbols = config.platforms[1]["symbols"]
+        #platform = config.platforms[1]["platform"] #交易所
+        #account = config.platforms[1]["account"] #此参数回测盘不用,不过为了统一都写上不影响
+        #access_key = config.platforms[1]["access_key"] #此参数回测盘不用,不过为了统一都写上不影响
+        #secret_key = config.platforms[1]["secret_key"] #此参数回测盘不用,不过为了统一都写上不影响
+        #symbols = config.platforms[1]["symbols"]
         # 交易模块参数
-        params = {
-            "strategy": config.strategy,
-            "platform": platform,
-            "symbols": symbols,
-            "account": account,
-            "access_key": access_key,
-            "secret_key": secret_key,
+        #params = {
+        #    "strategy": config.strategy,
+        #    "platform": platform,
+        #    "symbols": symbols,
+        #    "account": account,
+        #    "access_key": access_key,
+        #    "secret_key": secret_key,
 
-            "enable_kline_update": True,
-            "enable_orderbook_update": True,
-            "enable_trade_update": True,
-            "enable_ticker_update": True,
-            "enable_order_update": True,
-            "enable_fill_update": True,
-            "enable_position_update": True,
-            "enable_asset_update": True,
+        #    "enable_kline_update": True,
+        #    "enable_orderbook_update": True,
+        #    "enable_trade_update": True,
+        #    "enable_ticker_update": True,
+        #    "enable_order_update": True,
+        #    "enable_fill_update": True,
+        #    "enable_position_update": True,
+        #    "enable_asset_update": True,
 
-            "direct_kline_update": False,
-            "direct_orderbook_update": False,
-            "direct_trade_update": False,
-            "direct_ticker_update": False
-        }
-        self.gw1 = self.create_gateway(**params)
+        #    "direct_kline_update": False,
+        #    "direct_orderbook_update": False,
+        #    "direct_trade_update": False,
+        #    "direct_ticker_update": False
+        #}
+        #self.gw1 = self.create_gateway(**params)
 
         # 注册定时器
         #self.enable_timer()  # 每隔1秒执行一次回调
@@ -115,6 +116,12 @@ class DemoStrategy(Strategy):
         """ 市场K线更新
         """
         logger.info("kline:", kline, caller=self)
+        x = ModelAPI.current_datetime()
+        print(x)
+        x = ModelAPI.current_milli_timestamp()
+        print(x)
+        x = ModelAPI.today()
+        print(x)
 
     async def on_orderbook_update_callback(self, orderbook: Orderbook):
         """ 订单薄更新

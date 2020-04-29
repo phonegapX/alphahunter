@@ -8,6 +8,8 @@ Author: HJQuant
 Description: Asynchronous driven quantitative trading framework
 """
 
+from quant.config import config
+from quant.feed import HistoryDataFeed
 from quant.interface.infra_api import InfraAPI
 
 
@@ -22,19 +24,33 @@ class ModelAPI:
     def today():
         """ 获取今天datetime
         """
-        return InfraAPI.today()
+        if config.backtest or config.datamatrix: #如果是回测模式或者数据矩阵模式
+            #回测环境中的"当前时间"
+            ts = HistoryDataFeed.current_milli_timestamp()
+            return InfraAPI.milli_timestamp_to_datetime(ts).date()
+        else:
+            return InfraAPI.today()
 
     @staticmethod
     def current_datetime():
         """ 获取现在时间datetime
         """
-        return InfraAPI.current_datetime()
+        if config.backtest or config.datamatrix: #如果是回测模式或者数据矩阵模式
+            #回测环境中的"当前时间"
+            ts = HistoryDataFeed.current_milli_timestamp()
+            return InfraAPI.milli_timestamp_to_datetime(ts)
+        else:
+            return InfraAPI.current_datetime()
 
     @staticmethod
     def current_milli_timestamp():
         """ 获取现在时间距离 Unix新纪元（1970年1月1日）的毫秒数
         """
-        return InfraAPI.current_milli_timestamp()
+        if config.backtest or config.datamatrix: #如果是回测模式或者数据矩阵模式
+            #回测环境中的"当前时间"
+            return HistoryDataFeed.current_milli_timestamp()
+        else:
+            return InfraAPI.current_milli_timestamp()
 
     @staticmethod
     def datetime_to_milli_timestamp(dt):

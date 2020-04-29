@@ -12,6 +12,14 @@
         "password": "123456",
         "dbname": "admin"
     },
+    "LOG": {
+        "console": true,
+        "level": "DEBUG",
+        "path": "C:/Users/Administrator/Desktop/log",
+        "name": "quant.log",
+        "clear": false,
+        "backup_count": 5
+    },
     "PLATFORMS": [
         {
             "platform": "huobi",
@@ -19,13 +27,6 @@
             "access_key": "xxxxxxxxxxxx",
             "secret_key": "xxxxxxxxxxxx",
             "symbols": ["btcusdt","ethusdt"]
-        },
-        {
-            "platform": "huobi_future",
-            "account": "test",
-            "access_key": "xxxxxxxxxxxx",
-            "secret_key": "xxxxxxxxxxxx",
-            "symbols": ["BTC191227","ETH191227"]
         }
     ],
     "BACKTEST": {

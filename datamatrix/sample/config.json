@@ -12,15 +12,26 @@
         "password": "123456",
         "dbname": "admin"
     },
+    "LOG": {
+        "console": true,
+        "level": "DEBUG",
+        "path": "C:/Users/Administrator/Desktop/log",
+        "name": "quant.log",
+        "clear": false,
+        "backup_count": 5
+    },
     "PLATFORMS": [
         {
-            "platform": "ftx",
-            "symbols": ["BTC-PERP","ETH-PERP"]
+            "platform": "huobi",
+            "account": "test",
+            "access_key": "xxxxxxxxxxxx",
+            "secret_key": "xxxxxxxxxxxx",
+            "symbols": ["btcusdt","ethusdt"]
         }
     ],
     "DATAMATRIX": {
         "start_time": "2020-04-20",
-        "period_day": "3",
+        "period_day": "1",
         "drive_type": ["kline","trade","orderbook"]
     },
     "strategy": "datamatrix_demo"
