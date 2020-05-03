@@ -11,7 +11,7 @@ from mongo_utils import get_mongo_conn
 
 
 class Base(object):
-    DATABASE = "alphahunter"
+    DATABASE = "db_market"
     LIMIT = 100
     HALF_MINUTE = 30 * 1000
 
@@ -211,7 +211,7 @@ class Kline(Base):
     """
     K线
     """
-    DATABASE = "kline"
+    DATABASE = "db_custom_kline"
     COLUMNS = ["begin_dt", "end_dt", "open", "high", "low", "close", "avg_price", "buy_avg_price", "sell_avg_price",
                "open_avg", "close_avg", "volume", "amount", "book_count", "buy_book_count", "sell_book_count",
                "buy_volume", "sell_volume", "sell_aomunt", "sectional_high", "sectional_low", "sectional_volume",
@@ -226,11 +226,16 @@ class Kline(Base):
         "5min": 60 * 5 * 1000,
     }
 
-    def __init__(self, exchange_name, symbol_name, interval_str="1min", db="db_custom_kline"):
+    def __init__(self, exchange_name, symbol_name, interval_str="1min"):
         super(Base, self).__init__()
-        self.collection_name = "t_kline_{interval_str}_{exchange_name}_{symbol_name}".format(
-            interval_str=interval_str, exchange_name=exchange_name, symbol_name=symbol_name)
-        self.collection = get_mongo_conn(db)[self.collection_name]
+        
+        if interval_str=="1min":
+            self.collection_name = "t_kline_{exchange_name}_{symbol_name}".format(exchange_name=exchange_name, symbol_name=symbol_name)
+        else:
+            self.collection_name = "t_kline_{interval_str}_{exchange_name}_{symbol_name}".format(
+                interval_str=interval_str, exchange_name=exchange_name, symbol_name=symbol_name)
+
+        self.collection = get_mongo_conn(self.DATABASE)[self.collection_name]
         self.interval = self.INTERVAL_DIRECTION.get(interval_str, "1min")
 
     def insert_many(self, klines):
@@ -383,7 +388,7 @@ class Kline(Base):
         sum_volume = 0
 
         for document in documents:
-            sum_amount += document["amount"]
+            sum_amount += document["volume"]*document["tradeprice"] #如果是反向合约就不能这样计算
             sum_volume += document["volume"]
         return {
             "avg_price": sum_amount / sum_volume,
@@ -391,14 +396,14 @@ class Kline(Base):
             "sum_amount": sum_amount,
         }
 
-    def generate_kline_ex(self, begin_dt, trades, prev_kline, yestdy_last_kline, prev_close_price=0.0):
+    def generate_kline_ex(self, begin_dt, trades, prev_kline, yestdy_last_kline, yestdy_last_trade_price=0.0):
         """
         生成完整kline
         """
         prev_kline = prev_kline or {}
         yestdy_last_kline = yestdy_last_kline or {}
         if prev_kline and prev_kline == yestdy_last_kline:
-            prev_kline = {
+            prev_kline = { #这样做的目的是因为所有sectional_xxx的字段都需要每天从头开始累加
                 "open_avg": prev_kline.get("open_avg", 0.0),
                 "open_avg_fillna": prev_kline.get("open_avg_fillna", 0.0),
                 "close_avg": prev_kline.get("close_avg", 0.0),
@@ -438,7 +443,7 @@ class Kline(Base):
             "sectional_buy_amount": 0.0,
             "sectional_sell_volume": 0.0,
             "sectional_sell_amount": 0.0,
-            "prev_close_price": yestdy_last_kline.get("close", 0.0) or prev_close_price,
+            "prev_close_price": yestdy_last_kline.get("close", 0.0) or yestdy_last_trade_price,
             "next_price": 0.0,
             "next_price_fillna": 0.0,
             "prev_price": prev_kline.get("close_avg", 0.0),
@@ -470,14 +475,14 @@ class Kline(Base):
         for t_document in trades:
             tradeprices.append(t_document["tradeprice"])
 
-            if t_document["direction"] == "buy":
+            if t_document["direction"] == "BUY":
                 buy_trades.append(t_document)
             else:
                 sell_trades.append(t_document)
 
-            if t_document["dt"] - begin_dt < duration:
+            if t_document["dt"] - begin_dt < duration: #对于一分钟K线就是前12秒的成交
                 open_trades.append(t_document)
-            elif (begin_dt + self.interval) - t_document["dt"] <= duration:
+            elif (begin_dt + self.interval) - t_document["dt"] <= duration: #对于一分钟K线就是后12秒的成交
                 close_trades.append(t_document)
 
         high = max(tradeprices) if tradeprices else 0.0
@@ -527,19 +532,15 @@ class Kline(Base):
         sectional_buy_amount = prev_kline.get("sectional_buy_amount", 0.0) + new_kline["buy_amount"]
         new_kline["sectional_buy_volume"] = sectional_buy_volume
         new_kline["sectional_buy_amount"] = sectional_buy_amount
-        new_kline["sectional_buy_avg_price"] = sectional_buy_amount / sectional_buy_volume \
-            if sectional_buy_amount else 0.0
-        new_kline["sectional_buy_book_count"] = prev_kline.get("sectional_buy_book_count", 0.0) + \
-            new_kline["buy_book_count"]
+        new_kline["sectional_buy_avg_price"] = sectional_buy_amount / sectional_buy_volume if sectional_buy_amount else 0.0
+        new_kline["sectional_buy_book_count"] = prev_kline.get("sectional_buy_book_count", 0.0) + new_kline["buy_book_count"]
 
         sectional_sell_volume = prev_kline.get("sectional_sell_volume", 0.0) + new_kline["sell_volume"]
         sectional_sell_amount = prev_kline.get("sectional_sell_amount", 0.0) + new_kline["sell_amount"]
         new_kline["sectional_sell_volume"] = sectional_sell_volume
         new_kline["sectional_sell_amount"] = sectional_sell_amount
-        new_kline["sectional_sell_avg_price"] = \
-            sectional_sell_amount / sectional_sell_volume if sectional_sell_amount else 0.0
-        new_kline["sectional_sell_book_count"] = prev_kline.get("sectional_sell_book_count", 0.0) + \
-            new_kline["sell_book_count"]
+        new_kline["sectional_sell_avg_price"] = sectional_sell_amount / sectional_sell_volume if sectional_sell_amount else 0.0
+        new_kline["sectional_sell_book_count"] = prev_kline.get("sectional_sell_book_count", 0.0) + new_kline["sell_book_count"]
 
         open_avg = new_kline["open_avg"]
         close_avg = new_kline["close_avg"]
@@ -547,20 +548,17 @@ class Kline(Base):
         close_avg_fillna = close_avg if close_avg else new_kline["close"]
         new_kline["close_avg_fillna"] = close_avg_fillna
 
-        prev_close_avg_fillna = prev_kline.get("close_avg_fillna", 0.0)
-        new_kline["lag_ret"] = math.log(new_kline["close_avg"] / prev_kline["close_avg"]) \
-            if prev_kline.get("close_avg", 0.0) and new_kline["close_avg"] else None
+        new_kline["lag_ret"] = math.log(new_kline["close_avg"]/prev_kline["close_avg"]) if prev_kline.get("close_avg", 0.0) and new_kline["close_avg"] else None
 
-        new_kline["lag_ret_fillna"] = math.log(close_avg_fillna / prev_close_avg_fillna) \
-            if prev_close_avg_fillna and close_avg_fillna else None
+        prev_close_avg_fillna = prev_kline.get("close_avg_fillna", 0.0)
+        new_kline["lag_ret_fillna"] = math.log(close_avg_fillna/prev_close_avg_fillna) if prev_close_avg_fillna and close_avg_fillna else None
 
         # "lead_ret": 0.0  # math.log(next_price / open_avg),
         # "lead_ret_fillna": 0.0  # math.log(next_price_fillna / open_avg_fillna),
         open_avg = new_kline["open_avg"]
         open_avg_fillna = new_kline["open_avg_fillna"]
-        lead_ret = math.log(open_avg / prev_kline["open_avg"]) if prev_kline.get("open_avg", 0.0) and open_avg else None
-        lead_ret_fillna = math.log(open_avg_fillna / prev_kline["open_avg_fillna"])\
-            if prev_kline.get("open_avg_fillna", 0.0) and open_avg_fillna else None
+        lead_ret = math.log(open_avg/prev_kline["open_avg"]) if prev_kline.get("open_avg", 0.0) and open_avg else None
+        lead_ret_fillna = math.log(open_avg_fillna/prev_kline["open_avg_fillna"]) if prev_kline.get("open_avg_fillna", 0.0) and open_avg_fillna else None
         prev_kline.update({
             "next_price": open_avg,
             "next_price_fillna": open_avg_fillna if open_avg_fillna else prev_kline["close_avg_fillna"],

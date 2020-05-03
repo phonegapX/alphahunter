@@ -8,8 +8,12 @@ Author: HJQuant
 Description: Asynchronous driven quantitative trading framework
 """
 
+import asyncio
+import threading
+from functools import wraps
+
 from quant.config import config
-from quant.feed import HistoryDataFeed
+from quant.history import HistoryAdapter
 from quant.interface.infra_api import InfraAPI
 
 
@@ -20,13 +24,28 @@ class ModelAPI:
         """ 初始化
         """
 
+    def contextswitch(fn):
+        """
+        装饰器函数
+        """
+        @wraps(fn)
+        async def wrap(*args, **kwargs):
+            #如果是回测模式或者数据矩阵模式,并且当前线程不是主线程
+            if (config.backtest or config.datamatrix) and threading.current_thread() != threading.main_thread():
+                from quant.quant import quant
+                future = asyncio.run_coroutine_threadsafe(fn(*args, **kwargs), quant.get_event_loop())
+                return future.result()
+            else:
+                return await fn(*args, **kwargs)
+        return wrap
+
     @staticmethod
     def today():
         """ 获取今天datetime
         """
         if config.backtest or config.datamatrix: #如果是回测模式或者数据矩阵模式
             #回测环境中的"当前时间"
-            ts = HistoryDataFeed.current_milli_timestamp()
+            ts = HistoryAdapter.current_milli_timestamp()
             return InfraAPI.milli_timestamp_to_datetime(ts).date()
         else:
             return InfraAPI.today()
@@ -37,7 +56,7 @@ class ModelAPI:
         """
         if config.backtest or config.datamatrix: #如果是回测模式或者数据矩阵模式
             #回测环境中的"当前时间"
-            ts = HistoryDataFeed.current_milli_timestamp()
+            ts = HistoryAdapter.current_milli_timestamp()
             return InfraAPI.milli_timestamp_to_datetime(ts)
         else:
             return InfraAPI.current_datetime()
@@ -48,7 +67,7 @@ class ModelAPI:
         """
         if config.backtest or config.datamatrix: #如果是回测模式或者数据矩阵模式
             #回测环境中的"当前时间"
-            return HistoryDataFeed.current_milli_timestamp()
+            return HistoryAdapter.current_milli_timestamp()
         else:
             return InfraAPI.current_milli_timestamp()
 
@@ -107,90 +126,105 @@ class ModelAPI:
         return await InfraAPI.get_trade_usable_symbol_list()
 
     @staticmethod
+    @contextswitch
     async def get_kline_by_time(exchange, symbol, epoch_millisecond, tolerance_millisecond, kline_horizon=None):
         """ 根据给定symbol，给定kline horizon，比如1min或者5min，给定毫秒时间，容忍毫秒数，找到kline
         """
         return await InfraAPI.get_kline_by_time(exchange, symbol, epoch_millisecond, tolerance_millisecond, kline_horizon)
 
     @staticmethod
+    @contextswitch
     async def get_klines_between(exchange, symbol, begin_epoch_millisecond, end_epoch_millisecond, kline_horizon=None):
         """ 根据给定symbol，给定kline horizon，比如1min或者5min，给定起始毫秒，结束毫秒，找到所有kline列表
         """
         return await InfraAPI.get_klines_between(exchange, symbol, begin_epoch_millisecond, end_epoch_millisecond, kline_horizon)
 
     @staticmethod
+    @contextswitch
     async def get_prev_klines(exchange, symbol, epoch_millisecond, n, kline_horizon=None):
         """ 根据当前毫秒数，给定kline horizon，往过去load若干根kline
         """
         return await InfraAPI.get_prev_klines(exchange, symbol, epoch_millisecond, n, kline_horizon)
 
     @staticmethod
+    @contextswitch
     async def get_next_klines(exchange, symbol, epoch_millisecond, n, kline_horizon=None):
         """ 根据当前毫秒数，给定kline horizon，往未来load若干根kline
         """
         return await InfraAPI.get_next_klines(exchange, symbol, epoch_millisecond, n, kline_horizon)
 
     @staticmethod
+    @contextswitch
     async def get_last_kline_oneday(exchange, symbol, date, kline_horizon=None):
         """ 给定日期，给定kline horizon，找到当天的最后一根kline
         """
         return await InfraAPI.get_last_kline_oneday(exchange, symbol, date, kline_horizon)
 
     @staticmethod
+    @contextswitch
     async def get_trade_by_time(exchange, symbol, epoch_millisecond, tolerance_millisecond):
         """ 根据给定symbol，给定毫秒时间，容忍毫秒数，找到trade
         """
         return await InfraAPI.get_trade_by_time(exchange, symbol, epoch_millisecond, tolerance_millisecond)
 
     @staticmethod
+    @contextswitch
     async def get_trades_between(exchange, symbol, begin_epoch_millisecond, end_epoch_millisecond):
         """ 根据给定symbol，给定起始毫秒，结束毫秒，找到所有trade列表
         """
         return await InfraAPI.get_trades_between(exchange, symbol, begin_epoch_millisecond, end_epoch_millisecond)
 
     @staticmethod
+    @contextswitch
     async def get_prev_trades(exchange, symbol, epoch_millisecond, n):
         """ 根据当前毫秒数，往过去load若干个trade
         """
         return await InfraAPI.get_prev_trades(exchange, symbol, epoch_millisecond, n)
 
     @staticmethod
+    @contextswitch
     async def get_next_trades(exchange, symbol, epoch_millisecond, n):
         """ 根据当前毫秒数，往未来load若干个trade
         """
         return await InfraAPI.get_next_trades(exchange, symbol, epoch_millisecond, n)
 
     @staticmethod
+    @contextswitch
     async def get_last_trade_oneday(exchange, symbol, date):
         """ 给定日期，找到当天的最后一笔trade
         """
         return await InfraAPI.get_last_trade_oneday(exchange, symbol, date)
 
     @staticmethod
+    @contextswitch
     async def get_orderbook_by_time(exchange, symbol, epoch_millisecond, tolerance_millisecond):
         """ 根据给定symbol，给定毫秒时间，容忍毫秒数，找到orderbook
         """
         return await InfraAPI.get_orderbook_by_time(exchange, symbol, epoch_millisecond, tolerance_millisecond)
 
     @staticmethod
+    @contextswitch
     async def get_orderbooks_between(exchange, symbol, begin_epoch_millisecond, end_epoch_millisecond):
         """ 根据给定symbol，给定起始毫秒，结束毫秒，找到所有orderbook列表
         """
         return await InfraAPI.get_orderbooks_between(exchange, symbol, begin_epoch_millisecond, end_epoch_millisecond)
 
     @staticmethod
+    @contextswitch
     async def get_prev_orderbooks(exchange, symbol, epoch_millisecond, n):
         """ 根据当前毫秒数，往过去load若干个orderbook
         """
         return await InfraAPI.get_prev_orderbooks(exchange, symbol, epoch_millisecond, n)
 
     @staticmethod
+    @contextswitch
     async def get_next_orderbooks(exchange, symbol, epoch_millisecond, n):
         """ 根据当前毫秒数，往未来load若干个orderbook
         """
         return await InfraAPI.get_next_orderbooks(exchange, symbol, epoch_millisecond, n)
 
     @staticmethod
+    @contextswitch
     async def get_last_orderbook_oneday(exchange, symbol, date):
         """ 给定日期，找到当天的最后一个orderbook
         """
@@ -209,12 +243,14 @@ class ModelAPI:
         return await InfraAPI.get_lag_ret_between_klines(exchange, symbol, kline1, kline2)
 
     @staticmethod
+    @contextswitch
     async def get_lead_ret_between_times(exchange, symbol, begin_millisecond, end_millisecond, tolerance_millisecond):
         """ 给定symbol，给定2个毫秒时间，容忍毫秒数，找到他们之间的lead_ret
         """
         return await InfraAPI.get_lead_ret_between_times(exchange, symbol, begin_millisecond, end_millisecond, tolerance_millisecond)
 
     @staticmethod
+    @contextswitch
     async def get_lag_ret_between_times(exchange, symbol, begin_millisecond, end_millisecond, tolerance_millisecond):
         """ 给定symbol，给定2个毫秒时间，容忍毫秒数，找到他们之间的lag_ret
         """

@@ -37,17 +37,17 @@ class DemoStrategy(Strategy):
         
         #=====================================================
         #创建第一个交易接口
-        platform = config.platforms[0]["platform"] #交易所
-        account = config.platforms[0]["account"] #此参数回测盘不用,不过为了统一都写上不影响
+        self.platform = config.platforms[0]["platform"] #交易所
+        self.symbols = config.platforms[0]["symbols"]
+        self.account = config.platforms[0]["account"] #此参数回测盘不用,不过为了统一都写上不影响
         access_key = config.platforms[0]["access_key"]  #此参数回测盘不用,不过为了统一都写上不影响
         secret_key = config.platforms[0]["secret_key"]  #此参数回测盘不用,不过为了统一都写上不影响
-        symbols = config.platforms[0]["symbols"]
-        # 交易模块参数
+        #交易模块参数
         params = {
             "strategy": config.strategy,
-            "platform": platform,
-            "symbols": symbols,
-            "account": account,
+            "platform": self.platform,
+            "symbols": self.symbols,
+            "account": self.account,
             "access_key": access_key,
             "secret_key": secret_key,
 
@@ -74,7 +74,7 @@ class DemoStrategy(Strategy):
         #access_key = config.platforms[1]["access_key"] #此参数回测盘不用,不过为了统一都写上不影响
         #secret_key = config.platforms[1]["secret_key"] #此参数回测盘不用,不过为了统一都写上不影响
         #symbols = config.platforms[1]["symbols"]
-        # 交易模块参数
+        #交易模块参数
         #params = {
         #    "strategy": config.strategy,
         #    "platform": platform,
@@ -99,7 +99,7 @@ class DemoStrategy(Strategy):
         #}
         #self.gw1 = self.create_gateway(**params)
 
-        # 注册定时器
+        #注册定时器
         #self.enable_timer()  # 每隔1秒执行一次回调
 
     async def on_time(self):
@@ -122,6 +122,9 @@ class DemoStrategy(Strategy):
         print(x)
         x = ModelAPI.today()
         print(x)
+        ts = ModelAPI.current_milli_timestamp()
+        r = await ModelAPI.get_klines_between(self.platform, self.symbols[0], ts, ts+10*60*1000)
+        print(r)
 
     async def on_orderbook_update_callback(self, orderbook: Orderbook):
         """ 订单薄更新

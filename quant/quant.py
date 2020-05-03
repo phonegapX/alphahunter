@@ -29,7 +29,7 @@ class Quant:
         Args:
             config_module: config file path, normally it"s a json file.
         """
-        self._get_event_loop()
+        self.get_event_loop()
         self._load_settings(config_module)
         self._init_logger()
         self._init_db_instance()
@@ -51,7 +51,7 @@ class Quant:
         logger.info("stop io loop.", caller=self)
         self.loop.stop()
 
-    def _get_event_loop(self):
+    def get_event_loop(self):
         """ Get a main io loop. """
         if not self.loop:
             self.loop = asyncio.get_event_loop()

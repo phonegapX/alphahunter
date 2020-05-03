@@ -12,20 +12,27 @@
         "password": "123456",
         "dbname": "admin"
     },
-    "PROXY": "http://127.0.0.1:6666",
     "LOG": {
         "console": true,
-        "level": "WARN",
+        "level": "DEBUG",
         "path": "C:/Users/Administrator/Desktop/log",
-        "name": "quant_huobi_collect.log",
+        "name": "quant.log",
         "clear": false,
         "backup_count": 5
     },
     "PLATFORMS": [
         {
             "platform": "huobi",
-            "symbols": ["btcusdt","ethusdt","eosusdt"]
+            "account": "test",
+            "access_key": "xxxxxxxxxxxx",
+            "secret_key": "xxxxxxxxxxxx",
+            "symbols": ["btcusdt"]
         }
     ],
-    "strategy": "huobi_collect"
+    "DATAMATRIX": {
+        "start_time": "2020-04-20",
+        "period_day": "1",
+        "drive_type": ["kline"]
+    },
+    "strategy": "datamatrix_demo"
 }

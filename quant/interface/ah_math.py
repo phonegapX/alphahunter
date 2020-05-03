@@ -8,12 +8,13 @@ Author: HJQuant
 Description: Asynchronous driven quantitative trading framework
 """
 
-import math
-import pandas as pd
-import numpy as np
-import statsmodels.api as sm
-import collections
 import copy
+import collections
+import warnings
+import math
+import numpy as np
+import pandas as pd
+import statsmodels.api as sm
 from scipy.stats import norm
 
 
@@ -385,3 +386,45 @@ class AHMath(object):
             od[key] = norm.ppf(float(i + 1) / (rank_num + 1))
             i += 1
         return od
+
+    @staticmethod
+    def zero_divide(x, y):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            res = np.divide(x, y)
+        if hasattr(y, "__len__"):
+            res[y == 0] = 0
+        elif y == 0:
+            res = 0
+        return res
+
+    @staticmethod
+    def ewma(x, halflife, init=0, min_periods=0, ignore_na=False, adjust=False):
+        init_s = pd.Series(data=init)
+        s = init_s.append(x)
+        if adjust:
+            xx = range(len(x))
+            lamb = 1 - 0.5**(1/halflife)
+            aa = 1-np.power(1-lamb, xx)*(1-lamb)
+            bb = s.ewm(halflife=halflife, min_periods=min_periods, ignore_na=ignore_na, adjust=False).mean().iloc[1:]
+            return bb/aa
+        else:
+            return s.ewm(halflife=halflife, min_periods=min_periods, ignore_na=ignore_na, adjust=False).mean().iloc[1:]
+
+    @staticmethod
+    def weighted_mean(l, w):
+        if len(l) != len(w):
+            print("weighted mean lists not same length!")
+            return np.nan
+        s = 0
+        w_sum = 0
+        for i in range(0, len(l)):
+            if pd.isnull(l[i]) or pd.isnull(w[i]):
+                continue
+            s += l[i] * w[i]
+            w_sum += w[i]
+
+        if w_sum == 0:
+            print("sum of weight is 0, this should not happen")
+            return np.nan
+        return s / w_sum

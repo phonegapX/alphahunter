@@ -25,6 +25,7 @@ from quant.order import Order, Fill, ORDER_ACTION_BUY, ORDER_ACTION_SELL, ORDER_
 from quant.position import Position
 from quant.asset import Asset
 from quant.startup import default_main
+from quant.interface.datamatrix_api import DataMatrixAPI
 
 
 class DataMatrixDemo(Strategy):
@@ -34,13 +35,13 @@ class DataMatrixDemo(Strategy):
         """
         super(DataMatrixDemo, self).__init__()
 
-        platform = config.platforms[0]["platform"] #交易所
-        symbols = config.platforms[0]["symbols"]
+        self.platform = config.platforms[0]["platform"] #交易所
+        self.symbols = config.platforms[0]["symbols"]
         # 交易模块参数
         params = {
             "strategy": config.strategy,
-            "platform": platform,
-            "symbols": symbols,
+            "platform": self.platform,
+            "symbols": self.symbols,
 
             "enable_kline_update": True,
             "enable_orderbook_update": True,
@@ -67,6 +68,9 @@ class DataMatrixDemo(Strategy):
         """ 市场K线更新
         """
         logger.info("kline:", kline, caller=self)
+        #ts = DataMatrixAPI.current_milli_timestamp()
+        #r = await DataMatrixAPI.get_klines_between(self.platform, self.symbols[0], ts, ts+10*60*1000)
+        #print(r)
         # add some logic and calculations here.
         # await add_row(Row)
 

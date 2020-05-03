@@ -115,7 +115,8 @@ class DemoStrategy(Strategy):
         """
         logger.info("on_state_update_callback:", state, caller=self)
         
-        if state.code == State.STATE_CODE_READY: #收到此状态通知,证明底层环境一切准备就绪,策略可以开始工作
+        if state.code == State.STATE_CODE_READY: #交易接口准备好
+            #收到此状态通知,证明指定交易接口准备就绪,可以对其进行操作,比如下单
             #s, e = await self.get_orders(self.gw, "ETH-0327")
             #s, e = await self.get_position(self.gw, "ETH-0327")
             #s, e = await self.get_assets(self.gw)

@@ -100,14 +100,25 @@ class Strategy(ExchangeGateway.ICallBack):
     async def _on_state_update_callback(self, state: State, **kwargs):
         """ 状态变化(底层交易所接口,框架等)通知回调函数
         """
-        if state.code == State.STATE_CODE_DB_SUCCESS: #数据库连接成功
-            if config.backtest or config.datamatrix: #如果是回测模式或者数据矩阵模式就开始喂历史数据
+        if config.backtest or config.datamatrix: #如果是回测模式或者数据矩阵模式
+            if state.code == State.STATE_CODE_DB_SUCCESS: #数据库连接成功状态码
                 if not self._just_once: #保证只执行一次
-                    from quant.feed import HistoryDataFeed
-                    SingleTask.run(HistoryDataFeed.start)
-                    self._just_once = True
-        #-------------------------------------------------------------
-        await self._original_on_state_update_callback(state, **kwargs)
+                    #开始执行策略回测或者数据矩阵,此模式下策略驱动顺序为:
+                    #1. on_state_update_callback(STATE_CODE_DB_SUCCESS)
+                    #2. on_state_update_callback(STATE_CODE_CONNECT_SUCCESS)
+                    #3. on_state_update_callback(STATE_CODE_READY)
+                    #4. kline or trade or orderbook callback
+                    from quant.history import HistoryAdapter
+                    HistoryAdapter.initialize() #初始化(回测时间轴)
+                    await self._original_on_state_update_callback(state, **kwargs)
+                    await HistoryAdapter.start() #开始喂历史数据
+                    self._just_once = True #保证只执行一次
+                else: #回测或者数据矩阵已经启动过了
+                    await self._original_on_state_update_callback(state, **kwargs)
+            else: #其他类型状态通知
+                await self._original_on_state_update_callback(state, **kwargs)
+        else: #实盘模式
+            await self._original_on_state_update_callback(state, **kwargs)
 
     @property
     def pm(self):
@@ -254,8 +265,11 @@ class Strategy(ExchangeGateway.ICallBack):
     def enable_timer(self, interval=1):
         """使能定时器功能
         """
-        self._interval = interval
-        SingleTask.call_later(self._later_call, self._interval)
+        if config.backtest or config.datamatrix: #回测模式或者数据矩阵模式
+            pass #暂时不支持定时器的模拟
+        else: #实盘模式
+            self._interval = interval
+            SingleTask.call_later(self._later_call, self._interval)
 
     async def _later_call(self):
         """延时调用
