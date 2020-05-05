@@ -398,11 +398,9 @@ class Kline(Base):
 
     def generate_kline_ex(self, begin_dt, trades, prev_kline, yestdy_last_kline, yestdy_last_trade_price=0.0):
         """
-        生成完整kline
+        生成一根完整kline
         """
-        prev_kline = prev_kline or {}
-        yestdy_last_kline = yestdy_last_kline or {}
-        if prev_kline and prev_kline == yestdy_last_kline:
+        if prev_kline == yestdy_last_kline:
             prev_kline = { #这样做的目的是因为所有sectional_xxx的字段都需要每天从头开始累加
                 "open_avg": prev_kline.get("open_avg", 0.0),
                 "open_avg_fillna": prev_kline.get("open_avg_fillna", 0.0),

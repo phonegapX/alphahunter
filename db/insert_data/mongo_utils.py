@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
+
 from pymongo import MongoClient
 
-# MONGO_POOL = MongoClient(host="192.168.1.110",
 MONGO_POOL = MongoClient(host="127.0.0.1",
                          maxPoolSize=10,
                          socketTimeoutMS=10000,  # warn:单位毫秒
@@ -10,8 +10,8 @@ MONGO_POOL = MongoClient(host="127.0.0.1",
                          w="majority",
                          j=True,
                          authSource="admin",
-                         username="root",
-                         password="123456")
+                         username="admin",
+                         password="admin")
 
 
 def get_mongo_conn(db="test"):

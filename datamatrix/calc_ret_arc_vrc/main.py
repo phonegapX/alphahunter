@@ -80,12 +80,12 @@ class DataMatrixDemo(Strategy):
     async def on_kline_update_callback(self, kline: Kline):
         """ 市场K线更新
         """
-        logger.info("kline:", kline, caller=self)
+        #logger.info("kline:", kline, caller=self)
 
         recent_days = []
-        today = DataMatrixAPI.current_datetime()
+        moment = DataMatrixAPI.current_datetime()
         for i in range(7):
-            recent_days.append(DataMatrixAPI.datetime_delta_time(today, delta_day=-1*(i+1)))
+            recent_days.append(DataMatrixAPI.datetime_delta_time(moment, delta_day=-1*(i+1)))
         eod_klines = []
         for each in recent_days:
             lk = await DataMatrixAPI.get_last_kline_oneday(self.platform, self.symbols[0], each)
@@ -143,7 +143,7 @@ class DataMatrixDemo(Strategy):
         kline_start = prev_klines[-1]
         for i in [1, 2, 5, 10, 30, 60]:
             kline_end = next_klines[i]
-            if not kine_start or not kline_end:
+            if not kline_start or not kline_end:
                 lead_rets.append(np.nan)
             elif pd.isnull(kline_start['next_price_fillna']) or pd.isnull(kline_end['next_price_fillna']) or kline_start['next_price_fillna'] == 0 or kline_end['next_price_fillna'] == 0:
                 lead_rets.append(np.nan)
@@ -166,11 +166,11 @@ class DataMatrixDemo(Strategy):
                         "vrc60": vrc60,
                         "vrc120": vrc120,
                         "vrc240": vrc240}
-        await add_row(self.new_row)
+        await self.add_row(self.new_row)
 
-    async def add_row(self, Row):
-        # add this Row to an existing csv file
-        pass
+    async def add_row(self, row):
+        # add this row to an existing csv file
+        logger.info("add row:", row, caller=self)
 
     async def on_orderbook_update_callback(self, orderbook: Orderbook): ...
     async def on_trade_update_callback(self, trade: Trade): ...

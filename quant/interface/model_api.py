@@ -14,7 +14,7 @@ from functools import wraps
 
 from quant.config import config
 from quant.history import HistoryAdapter
-from quant.interface.infra_api import InfraAPI
+from quant.infra_api import InfraAPI
 
 
 class ModelAPI:
@@ -127,7 +127,7 @@ class ModelAPI:
 
     @staticmethod
     @contextswitch
-    async def get_kline_by_time(exchange, symbol, epoch_millisecond, tolerance_millisecond, kline_horizon=None):
+    async def get_kline_by_time(exchange, symbol, epoch_millisecond, tolerance_millisecond=0, kline_horizon=None):
         """ 根据给定symbol，给定kline horizon，比如1min或者5min，给定毫秒时间，容忍毫秒数，找到kline
         """
         return await InfraAPI.get_kline_by_time(exchange, symbol, epoch_millisecond, tolerance_millisecond, kline_horizon)

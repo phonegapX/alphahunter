@@ -143,11 +143,11 @@ class InfraAPI:
         pass
 
     @staticmethod
-    async def get_kline_by_time(exchange, symbol, epoch_millisecond, tolerance_millisecond, kline_horizon=None):
+    async def get_kline_by_time(exchange, symbol, epoch_millisecond, tolerance_millisecond=0, kline_horizon=None):
         """ 根据给定symbol，给定kline horizon，比如1min或者5min，给定毫秒时间，容忍毫秒数，找到kline
         """
         cursor = InfraAPI._get_db_kline_reader(exchange, symbol)
-        s, e = await cursor.find_one({'begin_dt':{'$gte':epoch_millisecond,'$lt':epoch_millisecond+tolerance_millisecond}})
+        s, e = await cursor.find_one({'begin_dt':{'$gte':epoch_millisecond,'$lt':epoch_millisecond+tolerance_millisecond+1}})
         if e:
             return None
         return s
@@ -187,14 +187,26 @@ class InfraAPI:
     async def get_last_kline_oneday(exchange, symbol, date, kline_horizon=None):
         """ 给定日期，给定kline horizon，找到当天的最后一根kline
         """
-        pass
+        ONE_DAY = 60*60*24  #一天秒数
+        ONE_MIN = 60
+        day = date.date()
+        ts = datetime.datetime.strptime(str(day), '%Y-%m-%d').timestamp()
+        ts = ts + ONE_DAY - ONE_MIN
+        #dt = datetime.datetime.fromtimestamp(ts)
+        #print(dt.strftime('%Y-%m-%d %H:%M:%S.%f'))
+        ts = int(ts*1000)
+        cursor = InfraAPI._get_db_kline_reader(exchange, symbol)
+        s, e = await cursor.find_one({'begin_dt':ts})
+        if e:
+            return None
+        return s
 
     @staticmethod
     async def get_trade_by_time(exchange, symbol, epoch_millisecond, tolerance_millisecond):
         """ 根据给定symbol，给定毫秒时间，容忍毫秒数，找到trade
         """
         cursor = InfraAPI._get_db_trade_reader(exchange, symbol)
-        s, e = await cursor.find_one({'dt':{'$gte':epoch_millisecond,'$lt':epoch_millisecond+tolerance_millisecond}})
+        s, e = await cursor.find_one({'dt':{'$gte':epoch_millisecond,'$lt':epoch_millisecond+tolerance_millisecond+1}})
         if e:
             return None
         return s
@@ -234,14 +246,26 @@ class InfraAPI:
     async def get_last_trade_oneday(exchange, symbol, date):
         """ 给定日期，找到当天的最后一笔trade
         """
-        pass
+        ONE_DAY = 60*60*24*1000  #一天毫秒数
+        day = date.date()
+        ts = datetime.datetime.strptime(str(day), '%Y-%m-%d').timestamp()
+        ts = int(ts*1000)
+        ts = ts + ONE_DAY - 1
+        #dt = datetime.datetime.fromtimestamp(ts)
+        #print(dt.strftime('%Y-%m-%d %H:%M:%S.%f'))
+        cursor = InfraAPI._get_db_trade_reader(exchange, symbol)
+        sort = [('dt', pymongo.DESCENDING)]
+        s, e = await cursor.find_one({'dt':{'$lte':ts}}, sort=sort)
+        if e:
+            return None
+        return s
 
     @staticmethod
     async def get_orderbook_by_time(exchange, symbol, epoch_millisecond, tolerance_millisecond):
         """ 根据给定symbol，给定毫秒时间，容忍毫秒数，找到orderbook
         """
         cursor = InfraAPI._get_db_depth_reader(exchange, symbol)
-        s, e = await cursor.find_one({'dt':{'$gte':epoch_millisecond,'$lt':epoch_millisecond+tolerance_millisecond}})
+        s, e = await cursor.find_one({'dt':{'$gte':epoch_millisecond,'$lt':epoch_millisecond+tolerance_millisecond+1}})
         if e:
             return None
         return s
@@ -281,7 +305,19 @@ class InfraAPI:
     async def get_last_orderbook_oneday(exchange, symbol, date):
         """ 给定日期，找到当天的最后一个orderbook
         """
-        pass
+        ONE_DAY = 60*60*24*1000  #一天毫秒数
+        day = date.date()
+        ts = datetime.datetime.strptime(str(day), '%Y-%m-%d').timestamp()
+        ts = int(ts*1000)
+        ts = ts + ONE_DAY - 1
+        #dt = datetime.datetime.fromtimestamp(ts)
+        #print(dt.strftime('%Y-%m-%d %H:%M:%S.%f'))
+        cursor = InfraAPI._get_db_depth_reader(exchange, symbol)
+        sort = [('dt', pymongo.DESCENDING)]
+        s, e = await cursor.find_one({'dt':{'$lte':ts}}, sort=sort)
+        if e:
+            return None
+        return s
 
     @staticmethod
     async def get_lead_ret_between_klines(exchange, symbol, kline1, kline2):

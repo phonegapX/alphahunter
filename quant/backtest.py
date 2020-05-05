@@ -36,7 +36,7 @@ from quant.order import LIQUIDITY_TYPE_MAKER, LIQUIDITY_TYPE_TAKER
 from quant.order import ORDER_STATUS_SUBMITTED, ORDER_STATUS_PARTIAL_FILLED, ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED, ORDER_STATUS_FAILED
 from quant.market import Kline, Orderbook, Trade, Ticker
 from quant.history import HistoryAdapter
-from quant.interface.infra_api import InfraAPI
+from quant.infra_api import InfraAPI
 
 
 __all__ = ("BacktestTrader",)
