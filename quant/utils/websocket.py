@@ -67,6 +67,7 @@ class Websocket:
         except (aiohttp.client_exceptions.ClientConnectorError, 
                 aiohttp.client_exceptions.ClientHttpProxyError, 
                 aiohttp.client_exceptions.ServerDisconnectedError, 
+                aiohttp.client_exceptions.WSServerHandshakeError, 
                 asyncio.TimeoutError) as e:
             logger.error("connect to server error! url:", self._url, caller=self)
             state = State(self._platform, self._account, "connect to server error! url: {}, error: {}".format(self._url, e), State.STATE_CODE_CONNECT_FAILED)
