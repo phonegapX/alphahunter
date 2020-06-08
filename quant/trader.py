@@ -209,4 +209,12 @@ class Trader(ExchangeGateway):
         return success, error
 
     def shutdown(self):
+        """
+        """
         pass
+    
+    def csv_write(self, header, row):
+        """
+        """
+        if hasattr(self._t, "csv_write"):
+            self._t.csv_write(header, row)

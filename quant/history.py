@@ -33,6 +33,7 @@ class HistoryAdapter:
     INTERVAL = 1*60*60*1000 #按每小时做为时间间隔读取数据库
     gw_list = []
     current_timestamp = None #回测环境中的"当前时间"
+    bind_strategy = None
     
     def __init__(self, **kwargs):
         self.gw_list.append(self)
@@ -50,7 +51,7 @@ class HistoryAdapter:
         loop.run_forever()
 
     @classmethod
-    def initialize(cls):
+    def initialize(cls, bind_strategy):
         if config.backtest: #回测模式
             cls._start_time = config.backtest["start_time"] #起始时间
             cls._period_day = config.backtest["period_day"] #回测周期
@@ -63,6 +64,7 @@ class HistoryAdapter:
         ts = tools.datetime_str_to_ts(cls._start_time, fmt='%Y-%m-%d') #转换为时间戳
         ts *= 1000 #转换为毫秒时间戳
         cls.current_timestamp = ts
+        cls.bind_strategy = bind_strategy
 
     @classmethod
     async def start(cls):
@@ -115,6 +117,15 @@ class HistoryAdapter:
                         cls.current_timestamp = int(row['dt']) #回测环境中的"当前时间"
                         gw = row['gw']
                         await gw.feed(row) #逐行将数据喂给其对应的虚拟适配器接口
+                elif pd_list == None:
+                    #全部执行完毕,进行收尾工作
+                    #通知虚拟适配器
+                    for gw in cls.gw_list:
+                        await gw.done()
+                    #通知策略
+                    await cls.bind_strategy.done()
+                    #停止之前新建的事件循环线程
+                    thread_loop.stop()
             
             #----------------------------------------------------------------
             #实测发现策略回测和读取mongodb数据库(io操作)这两个任务在同一个线程事件loop中并不能实现并发,
@@ -127,3 +138,7 @@ class HistoryAdapter:
             
             #在工作线程中运行
             asyncio.run_coroutine_threadsafe(task(pd_list), thread_loop)
+        #end while
+        
+        #完成通知
+        asyncio.run_coroutine_threadsafe(task(None), thread_loop)

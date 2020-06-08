@@ -182,6 +182,11 @@ class BacktestTrader(HistoryAdapter, ExchangeGateway):
         await self.cb.on_state_update_callback(state)
         state = State(self._platform, self._account, "Environment ready", State.STATE_CODE_READY)
         await self.cb.on_state_update_callback(state)
+
+    async def done(self):
+        """ 回测完成
+        """
+        pass
     
     async def create_order(self, symbol, action, price, quantity, order_type=ORDER_TYPE_LIMIT, *args, **kwargs):
         """ Create an order.

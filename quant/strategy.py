@@ -20,6 +20,7 @@ from quant.portfoliomanager import PortfolioManager
 from quant.trader import Trader
 from quant.tasks import LoopRunTask, SingleTask
 from quant.utils.mongo import MongoDB
+from quant.utils import logger
 from quant.state import State
 from quant import const
 from quant.config import config
@@ -35,6 +36,8 @@ class Strategy(ExchangeGateway.ICallBack):
     def __init__(self):
         """ 初始化
         """
+        self._feature_row = []
+        self._gw_list = []
         self._just_once = False
         self._interval = 0
         self._pm = PortfolioManager()
@@ -103,16 +106,16 @@ class Strategy(ExchangeGateway.ICallBack):
         if config.backtest or config.datamatrix: #如果是回测模式或者数据矩阵模式
             if state.code == State.STATE_CODE_DB_SUCCESS: #数据库连接成功状态码
                 if not self._just_once: #保证只执行一次
+                    self._just_once = True #保证只执行一次
                     #开始执行策略回测或者数据矩阵,此模式下策略驱动顺序为:
                     #1. on_state_update_callback(STATE_CODE_DB_SUCCESS)
                     #2. on_state_update_callback(STATE_CODE_CONNECT_SUCCESS)
                     #3. on_state_update_callback(STATE_CODE_READY)
                     #4. kline or trade or orderbook callback
                     from quant.history import HistoryAdapter
-                    HistoryAdapter.initialize() #初始化(回测时间轴)
+                    HistoryAdapter.initialize(self) #初始化(回测时间轴)
                     await self._original_on_state_update_callback(state, **kwargs)
                     await HistoryAdapter.start() #开始喂历史数据
-                    self._just_once = True #保证只执行一次
                 else: #回测或者数据矩阵已经启动过了
                     await self._original_on_state_update_callback(state, **kwargs)
             else: #其他类型状态通知
@@ -260,7 +263,9 @@ class Strategy(ExchangeGateway.ICallBack):
 
         kwargs["cb"] = cb
         
-        return Trader(**kwargs)
+        t = Trader(**kwargs)
+        self._gw_list.append(t)
+        return t
 
     def enable_timer(self, interval=1):
         """使能定时器功能
@@ -415,3 +420,32 @@ class Strategy(ExchangeGateway.ICallBack):
         """
         from quant.quant import quant
         quant.stop()
+
+    async def add_row(self, row):
+        """
+        """
+        logger.info("add row:", row, caller=self)
+        for gw in self._gw_list:
+            gw.csv_write(self.feature_row, row)
+
+    @property
+    def feature_row(self):
+        """ 绑定属性
+        """
+        return self._feature_row
+
+    @feature_row.setter
+    def feature_row(self, value):
+        """ 属性写
+        """
+        self._feature_row = value
+
+    async def done(self):
+        """ 回测或者数据矩阵工作完毕
+        """
+        if config.backtest: #回测模式
+            #这里应该生成回测结果报告
+            pass
+        elif config.datamatrix: #数据矩阵模式
+            logger.info("datamatrix 完毕", caller=self)
+            self.stop()

@@ -70,12 +70,11 @@ class DataMatrixDemo(Strategy):
         logger.info("on_state_update_callback:", state, caller=self)
 
     def init(self):
-        self.__feature_row = ['dt', 'date_str', 'next_1min_ret', 'next_2min_ret', 'next_5min_ret', 'next_10min_ret', 'next_30min_ret', 'next_1h_ret']
-        self._xho = [30, 60, 120, 240]
-        self._x = ['arc', 'vrc']
-        for x in self._x:
-            for xho in self._xho:
-                self.__feature_row.append(x + str(xho))
+        #self.feature_row表示csv文件字段名,此变量系统内部会被使用到,按下面这种列表形式填充该变量
+        self.feature_row = ['dt', 'date_str', 'next_1min_ret', 'next_2min_ret', 'next_5min_ret', 'next_10min_ret', 'next_30min_ret', 'next_60min_ret']
+        for x in ['arc', 'vrc']:
+            for xho in [30, 60, 120, 240]:
+                self.feature_row.append(x + str(xho))
 
     async def on_kline_update_callback(self, kline: Kline):
         """ 市场K线更新
@@ -150,27 +149,23 @@ class DataMatrixDemo(Strategy):
             else:
                 lead_rets.append(kline_end['next_price_fillna'] / kline_start['next_price_fillna'] - 1.0)
 
-        self.new_row = {"dt": kline_start['end_dt'],
-                        "date_str": DataMatrixAPI.datetime_to_str(DataMatrixAPI.milli_timestamp_to_datetime(kline_start['end_dt'])),
-                        "next_1min_ret": lead_rets[0],
-                        "next_2min_ret": lead_rets[1],
-                        "next_5min_ret": lead_rets[2],
-                        "next_10min_ret": lead_rets[3],
-                        "next_30min_ret": lead_rets[4],
-                        "next_60min_ret": lead_rets[5],
-                        "arc30": arc30,
-                        "arc60": arc60,
-                        "arc120": arc120,
-                        "arc240": arc240,
-                        "vrc30": vrc30,
-                        "vrc60": vrc60,
-                        "vrc120": vrc120,
-                        "vrc240": vrc240}
-        await self.add_row(self.new_row)
-
-    async def add_row(self, row):
-        # add this row to an existing csv file
-        logger.info("add row:", row, caller=self)
+        new_row = { "dt": kline_start['end_dt'],
+                    "date_str": DataMatrixAPI.datetime_to_str(DataMatrixAPI.milli_timestamp_to_datetime(kline_start['end_dt'])),
+                    "next_1min_ret": lead_rets[0],
+                    "next_2min_ret": lead_rets[1],
+                    "next_5min_ret": lead_rets[2],
+                    "next_10min_ret": lead_rets[3],
+                    "next_30min_ret": lead_rets[4],
+                    "next_60min_ret": lead_rets[5],
+                    "arc30": arc30,
+                    "arc60": arc60,
+                    "arc120": arc120,
+                    "arc240": arc240,
+                    "vrc30": vrc30,
+                    "vrc60": vrc60,
+                    "vrc120": vrc120,
+                    "vrc240": vrc240 }
+        await self.add_row(new_row)
 
     async def on_orderbook_update_callback(self, orderbook: Orderbook): ...
     async def on_trade_update_callback(self, trade: Trade): ...

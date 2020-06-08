@@ -217,22 +217,22 @@ class AHMath(object):
         return s / float(w_sum)
 
     @staticmethod
-    def sma(self, a, n):
+    def sma(a, n):
         """ 返回一个列表a最末n个元素的简单平均值，出现任何异常，返回None
         """
         if len(a) < n:
             print('list lenght less than requirement: ', n)
             return None
-        return self.mean(a[-n:])
+        return AHMath.mean(a[-n:])
 
     # decay index alpha, 0:0.5, 1:0.1, 2:0.05, 3:0.02, 4:0.01, 5:0.005, 6:0.001, 7:0.95, 8:0.9
     @staticmethod
-    def ema_alpha(self, a, n, alpha):
+    def ema_alpha(a, n, alpha):
         """ 返回一个列表a里面最末n个元素的指数平均值，衰减参数是alpha，出现任何异常，返回None
         """
         if len(a) < n:
             print('list length less than requirement: ', n)
-        count = len(a) - self.count_nan(a)
+        count = len(a) - AHMath.count_nan(a)
         if count == 0:
             print('all values nan')
             return None
@@ -274,31 +274,31 @@ class AHMath(object):
         """ 返回线性回归对象的常数项
         """
         return reg.params[0]
-    
+
     @staticmethod
     def reg_betas(reg):
         """ 返回线性回归对象的变量所对应的系数
         """
         return reg.params[1:]
-    
+
     @staticmethod
     def r_squared(reg):
         """ 返回线性回归对象的r平方
         """
         return reg.rsquared
-    
+
     @staticmethod
     def r_squared_adj(reg):
         """ 返回线性回归对象的调整后r平方
         """
         return reg.rsquared_adj
-    
+
     @staticmethod
     def reg_const_tstats(reg):
         """ 返回线性回归对象的常数项t统计量
         """
         return reg.tvalues[0]
-    
+
     @staticmethod
     def reg_beta_tstats(reg):
         """ 返回线性回归对象的非常数项系数的t统计量
@@ -374,7 +374,7 @@ class AHMath(object):
 
     @staticmethod
     def linear_normal_rank(rank_dict, reverse_value=False):
-        """ 对原字典value做线性正太排序，找到自然数顺序排序，并根据排序值返回正态分布
+        """ 对原字典value做线性正态排序，找到自然数顺序排序，并根据排序值返回正态分布
         累计概率分布的反函数所对应的值，返回字典对象
         """
         od = collections.OrderedDict(sorted(rank_dict.items(), key=lambda t: t[1], reverse=reverse_value))
@@ -405,26 +405,8 @@ class AHMath(object):
         if adjust:
             xx = range(len(x))
             lamb = 1 - 0.5**(1/halflife)
-            aa = 1-np.power(1-lamb, xx)*(1-lamb)
-            bb = s.ewm(halflife=halflife, min_periods=min_periods, ignore_na=ignore_na, adjust=False).mean().iloc[1:]
-            return bb/aa
+            adjfactor = 1-np.power(1-lamb, xx)*(1-lamb)
+            r = s.ewm(halflife=halflife, min_periods=min_periods, ignore_na=ignore_na, adjust=False).mean().iloc[1:]
+            return r/adjfactor
         else:
             return s.ewm(halflife=halflife, min_periods=min_periods, ignore_na=ignore_na, adjust=False).mean().iloc[1:]
-
-    @staticmethod
-    def weighted_mean(l, w):
-        if len(l) != len(w):
-            print("weighted mean lists not same length!")
-            return np.nan
-        s = 0
-        w_sum = 0
-        for i in range(0, len(l)):
-            if pd.isnull(l[i]) or pd.isnull(w[i]):
-                continue
-            s += l[i] * w[i]
-            w_sum += w[i]
-
-        if w_sum == 0:
-            print("sum of weight is 0, this should not happen")
-            return np.nan
-        return s / w_sum

@@ -8,6 +8,10 @@ Author: HJQuant
 Description: Asynchronous driven quantitative trading framework
 """
 
+import sys
+import os
+import csv
+from quant.utils import logger
 from quant.order import ORDER_TYPE_LIMIT
 from quant.backtest import BacktestTrader
 
@@ -21,6 +25,29 @@ class DataMatrixTrader(BacktestTrader):
     def __init__(self, **kwargs):
         """Initialize."""
         super(DataMatrixTrader, self).__init__(**kwargs)
+        self._csv_write = None
+        self._f = None
+
+    def csv_write(self, header, row):
+        """ 写csv文件
+        """
+        if not self._csv_write: #如果csv文件还没初始化,就初始化它
+            csv_file = os.path.dirname(os.path.abspath(sys.argv[0])) + "/output.csv"
+            if os.path.isdir(csv_file) or os.path.ismount(csv_file) or os.path.islink(csv_file):
+                logger.error("无效的csv文件")
+                return
+            if os.path.isfile(csv_file):
+                os.remove(csv_file)
+            self._f = open(csv_file, 'a+', newline='')
+            self._csv_write = csv.DictWriter(self._f, fieldnames=header)
+            self._csv_write.writeheader()
+        #写一行内容
+        self._csv_write.writerow(row)
+
+    async def done(self):
+        """ DataMatrix完成
+        """
+        self._f.close()
 
     async def create_order(self, symbol, action, price, quantity, order_type=ORDER_TYPE_LIMIT, *args, **kwargs):
         """ Create an order.
