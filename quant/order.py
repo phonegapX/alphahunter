@@ -155,9 +155,10 @@ class SymbolInfo:
         value_limit: 最小`下单金额` (`下单金额`指当订单类型为`限价单`时,下单接口传入的(quantity * price).当订单类型为`buy-market`时,下单接口传的'quantity')
         base_currency: 交易对中的基础币种
         quote_currency: 交易对中的报价币种
+        settlement_currency: 交易对中的结算币种
     """
     
-    def __init__(self, platform=None, symbol=None, price_tick:float=None, size_tick:float=None, size_limit:float=None, value_tick:float=None, value_limit:float=None, base_currency=None, quote_currency=None):
+    def __init__(self, platform=None, symbol=None, price_tick:float=None, size_tick:float=None, size_limit:float=None, value_tick:float=None, value_limit:float=None, base_currency=None, quote_currency=None, settlement_currency=None):
         self.platform = platform
         self.symbol = symbol
         self.price_tick = price_tick
@@ -167,10 +168,11 @@ class SymbolInfo:
         self.value_limit = value_limit
         self.base_currency = base_currency
         self.quote_currency = quote_currency
+        self.settlement_currency = settlement_currency
         
     def __str__(self):
-        info = "[platform: {platform}, symbol: {symbol}, price_tick: {price_tick}, size_tick: {size_tick}, size_limit: {size_limit}, value_tick: {value_tick}, value_limit: {value_limit}, base_currency: {base_currency}, quote_currency: {quote_currency}]".format(
-            platform=self.platform, symbol=self.symbol, price_tick=self.price_tick, size_tick=self.size_tick, size_limit=self.size_limit, value_tick=self.value_tick, value_limit=self.value_limit, base_currency=self.base_currency, quote_currency=self.quote_currency)
+        info = "[platform: {platform}, symbol: {symbol}, price_tick: {price_tick}, size_tick: {size_tick}, size_limit: {size_limit}, value_tick: {value_tick}, value_limit: {value_limit}, base_currency: {base_currency}, quote_currency: {quote_currency}, settlement_currency: {settlement_currency}]".format(
+            platform=self.platform, symbol=self.symbol, price_tick=self.price_tick, size_tick=self.size_tick, size_limit=self.size_limit, value_tick=self.value_tick, value_limit=self.value_limit, base_currency=self.base_currency, quote_currency=self.quote_currency, settlement_currency=self.settlement_currency)
         return info
 
     def __repr__(self):

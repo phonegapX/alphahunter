@@ -13,13 +13,14 @@ import os
 import csv
 from quant.utils import logger
 from quant.order import ORDER_TYPE_LIMIT
-from quant.backtest import BacktestTrader
+from quant.history import VirtualTrader
+
 
 __all__ = ("DataMatrixTrader",)
 
 
-class DataMatrixTrader(BacktestTrader):
-    """ DataMatrixTrader module. 继承BacktestTrader的所有功能
+class DataMatrixTrader(VirtualTrader):
+    """ DataMatrixTrader module.
     """
 
     def __init__(self, **kwargs):

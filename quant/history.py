@@ -17,7 +17,11 @@ from quant.config import config
 from quant.tasks import SingleTask
 from quant.utils import tools, logger
 from quant.utils.decorator import async_method_locker
-
+from quant.gateway import ExchangeGateway
+from quant.state import State
+from quant.infra_api import InfraAPI
+from quant.const import MARKET_TYPE_KLINE
+from quant.market import Kline, Orderbook, Trade
 
 #打印能完整显示
 pd.set_option('display.max_columns', None)
@@ -142,3 +146,153 @@ class HistoryAdapter:
         
         #完成通知
         asyncio.run_coroutine_threadsafe(task(None), thread_loop)
+
+
+class VirtualTrader(HistoryAdapter, ExchangeGateway):
+    """ VirtualTrader module. You can initialize trader object with some attributes in kwargs.
+    """
+
+    def __init__(self, **kwargs):
+        """Initialize."""
+        self.cb = kwargs["cb"]
+
+        self._platform = kwargs.get("databind")
+        self._symbols = kwargs.get("symbols")
+        self._strategy = kwargs.get("strategy")
+        self._account = kwargs.get("account")
+
+        state = None
+        if not self._platform:
+            state = State(self._platform, self._account, "param platform miss")
+        elif not self._symbols:
+            state = State(self._platform, self._account, "param symbols miss")
+        elif not self._strategy:
+            state = State(self._platform, self._account, "param strategy miss")
+        if state:
+            logger.error(state, caller=self)
+            return
+
+        super(VirtualTrader, self).__init__(**kwargs)
+
+    async def load_data(self, drive_type, begin_time, end_time):
+        """ 从数据库中读取历史数据
+        """
+        try:
+            if drive_type == "kline":
+                pd_list = []
+                for symbol in self._symbols:
+                    r = await InfraAPI.get_klines_between(self._platform, symbol, begin_time, end_time)
+                    if r:
+                        #1.将r转换成pandas
+                        #2.然后添加3列,一列为drive_type,一列为symbol,一列为当前类的self值,然后将从begin_dt这一列复制一个新列,名字叫做dt,方便以后统一排序
+                        #3.pd_list.append(pandas)
+                        df = pd.DataFrame(r)
+                        df["drive_type"] = drive_type
+                        df["symbol"] = symbol
+                        df["gw"] = self
+                        df["dt"] = df["begin_dt"]
+                        del df["_id"]
+                        pd_list.append(df)
+                #将pd_list的所有pandas按行合并成一个大的pandas
+                #然后return这个大的pandas
+                if pd_list:
+                    return pd.concat(pd_list)
+                else:
+                    return pd.DataFrame()
+            elif drive_type == "trade":
+                pd_list = []
+                for symbol in self._symbols:
+                    r = await InfraAPI.get_trades_between(self._platform, symbol, begin_time, end_time)
+                    if r:
+                        #1.将r转换成pandas
+                        #2.然后添加3列,一列为drive_type,一列为symbol,一列为当前类的self值
+                        #3.pd_list.append(pandas)
+                        df = pd.DataFrame(r)
+                        df["drive_type"] = drive_type
+                        df["symbol"] = symbol
+                        df["gw"] = self
+                        del df["_id"]
+                        pd_list.append(df)
+                #将pd_list的所有pandas按行合并成一个大的pandas
+                #然后return这个大的pandas
+                if pd_list:
+                    return pd.concat(pd_list)
+                else:
+                    return pd.DataFrame()
+            elif drive_type == "orderbook":
+                pd_list = []
+                for symbol in self._symbols:
+                    r = await InfraAPI.get_orderbooks_between(self._platform, symbol, begin_time, end_time)
+                    if r:
+                        #1.将r转换成pandas
+                        #2.然后添加3列,一列为drive_type,一列为symbol,一列为当前类的self值
+                        #3.pd_list.append(pandas)
+                        df = pd.DataFrame(r)
+                        df["drive_type"] = drive_type
+                        df["symbol"] = symbol
+                        df["gw"] = self
+                        del df["_id"]
+                        pd_list.append(df)
+                #将pd_list的所有pandas按行合并成一个大的pandas
+                #然后return这个大的pandas
+                if pd_list:
+                    return pd.concat(pd_list)
+                else:
+                    return pd.DataFrame()
+        except Exception as e:
+            return pd.DataFrame() #发生异常就返回空df
+
+    async def feed(self, row):
+        """ 通过历史数据驱动策略进行回测
+        """
+        drive_type = row["drive_type"] #数据驱动方式
+        if drive_type == "kline" and self.cb.on_kline_update_callback:
+            row = row.dropna()
+            kw = row.to_dict()
+            del kw["drive_type"]
+            del kw["gw"]
+            del kw["dt"]
+            kw["platform"] = self._platform
+            kw["timestamp"] = int(kw["begin_dt"])
+            kw["kline_type"] = MARKET_TYPE_KLINE
+            kline = Kline(**kw)
+            await self.cb.on_kline_update_callback(kline)
+        elif drive_type == "trade" and self.cb.on_trade_update_callback:
+            kw = {
+                "platform": self._platform,
+                "symbol": row["symbol"],
+                "action": row["direction"],
+                "price": row["tradeprice"],
+                "quantity": row["volume"],
+                "timestamp": int(row["tradedt"])
+            }
+            trade = Trade(**kw)
+            await self.cb.on_trade_update_callback(trade)
+        elif drive_type == "orderbook" and self.cb.on_orderbook_update_callback:
+            asks = []
+            bids = []
+            for i in range(1, 20+1):
+                asks.append([row[f'askprice{i}'], row[f'asksize{i}']])
+                bids.append([row[f'bidprice{i}'], row[f'bidsize{i}']])
+            kw = {
+                "platform": self._platform,
+                "symbol": row["symbol"],
+                "asks": asks,
+                "bids": bids,
+                "timestamp": int(row["pubdt"])
+            }
+            ob = Orderbook(**kw)
+            await self.cb.on_orderbook_update_callback(ob)
+
+    async def launch(self):
+        """ 模拟交易接口连接初始化成功
+        """
+        state = State(self._platform, self._account, "connect to server success", State.STATE_CODE_CONNECT_SUCCESS)
+        await self.cb.on_state_update_callback(state)
+        state = State(self._platform, self._account, "Environment ready", State.STATE_CODE_READY)
+        await self.cb.on_state_update_callback(state)
+
+    async def done(self):
+        """ 回测完成
+        """
+        pass

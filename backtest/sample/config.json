@@ -27,12 +27,91 @@
             "access_key": "xxxxxxxxxxxx",
             "secret_key": "xxxxxxxxxxxx",
             "symbols": ["btcusdt","ethusdt"]
+        },
+        {
+            "platform": "huobi_future",
+            "account": "test",
+            "access_key": "xxxxxxxxxxxx",
+            "secret_key": "xxxxxxxxxxxx",
+            "symbols": ["BTC200626","ETH200626"]
         }
     ],
     "BACKTEST": {
         "start_time": "2020-04-20",
-        "period_day": "3",
-        "drive_type": ["kline","trade","orderbook"]
+        "period_day": "1",
+        "drive_type": ["kline"],
+        "feature": {
+            "huobi": {
+                "syminfo": {
+                    "btcusdt": {
+                        "type": "spot",
+                        "price_tick": 0.01,
+                        "size_tick": 0.0001,
+                        "size_limit": 0.0001,
+                        "value_tick": 1,
+                        "value_limit": 10,
+                        "base_currency": "BTC",
+                        "quote_currency": "USDT",
+                        "settlement_currency": "USDT"
+                    },
+                    "ethusdt": {
+                        "type": "spot",
+                        "price_tick": 0.01,
+                        "size_tick": 0.01,
+                        "size_limit": 0.01,
+                        "value_tick": 1,
+                        "value_limit": 10,
+                        "base_currency": "ETH",
+                        "quote_currency": "USDT",
+                        "settlement_currency": "USDT"
+                    }
+                },
+                "asset": {
+                    "BTC": 10,
+                    "ETH": 100,
+                    "USDT": 10000
+                },
+                "commission_rate": 0.02
+            },
+            "huobi_future": {
+                "syminfo": {
+                    "BTC200626": {
+                        "type": "future",
+                        "price_tick": 0.01,
+                        "size_tick": 0.0001,
+                        "size_limit": 0.0001,
+                        "value_tick": 1,
+                        "value_limit": 10,
+                        "base_currency": "BTC",
+                        "quote_currency": "USD",
+                        "settlement_currency": "BTC",
+                        "contract_size": 100,
+                        "contract_style": "okex",
+                        "is_inverse": true
+                    },
+                    "ETH200626": {
+                        "type": "future",
+                        "price_tick": 0.01,
+                        "size_tick": 0.01,
+                        "size_limit": 0.01,
+                        "value_tick": 1,
+                        "value_limit": 10,
+                        "base_currency": "ETH",
+                        "quote_currency": "USD",
+                        "settlement_currency": "ETH",
+                        "contract_size": 10,
+                        "contract_style": "okex",
+                        "is_inverse": true
+                    }
+                },
+                "asset": {
+                    "BTC": 10,
+                    "ETH": 100
+                },
+                "commission_rate": 0.002,
+                "leverage": 10
+            }
+        }
     },
     "strategy": "my_test_strategy"
 }

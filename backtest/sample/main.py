@@ -111,20 +111,47 @@ class DemoStrategy(Strategy):
         """ 状态变化(底层交易所接口,框架等)通知回调函数
         """
         logger.info("on_state_update_callback:", state, caller=self)
+        
+        if state.code == State.STATE_CODE_READY: #交易接口准备好
+            s, e = await self.get_symbol_info(self.gw, self.symbols[0])
+            s, e = await self.get_assets(self.gw)
+            s, e = await self.get_orders(self.gw, self.symbols[0])
+
+        elif state.code == State.STATE_CODE_CONNECT_SUCCESS:    #交易接口连接成功
+            pass #仅仅是通知一下,实际策略可以不用过于关注此状态
+        elif state.code == State.STATE_CODE_CONNECT_FAILED:     #交易接口连接失败
+            pass #不需要过于关注此状态,因为底层接口会自动重新连接
+        elif state.code == State.STATE_CODE_DISCONNECT:         #交易接口连接断开
+            pass #不需要过于关注此状态,因为底层接口会自动重新连接
+        elif state.code == State.STATE_CODE_RECONNECTING:       #交易接口重新连接中
+            pass #比如说可以记录重连次数,如果一段时间内一直在重连可能交易所出问题,可以酌情处理,如结束本策略进程等
+        elif state.code == State.STATE_CODE_PARAM_MISS:         #交易接口初始化过程缺少参数
+            pass #收到此状态通知,证明无法正常初始化,应该结束本策略进程
+        elif state.code == State.STATE_CODE_GENERAL_ERROR:      #交易接口常规错误
+            ... #策略进程运行过程中如果收到某些错误通知,可以根据实际情况判断,比如可以做一些策略善后工作,然后结束本策略进程
+            return
 
     async def on_kline_update_callback(self, kline: Kline):
         """ 市场K线更新
         """
         logger.info("kline:", kline, caller=self)
-        x = ModelAPI.current_datetime()
-        print(x)
-        x = ModelAPI.current_milli_timestamp()
-        print(x)
-        x = ModelAPI.today()
-        print(x)
-        ts = ModelAPI.current_milli_timestamp()
-        r = await ModelAPI.get_klines_between(self.platform, self.symbols[0], ts, ts+10*60*1000)
-        print(r)
+        #x = ModelAPI.current_datetime()
+        #print(x)
+        #x = ModelAPI.current_milli_timestamp()
+        #print(x)
+        #x = ModelAPI.today()
+        #print(x)
+        #ts = ModelAPI.current_milli_timestamp()
+        #r = await ModelAPI.get_klines_between(self.platform, self.symbols[0], ts, ts+10*60*1000)
+        #print(r)
+        if kline.symbol == self.symbols[0]:
+            s, e = await self.create_order(self.gw, self.symbols[0], ORDER_ACTION_BUY, 0, 1000, ORDER_TYPE_MARKET)
+            s, e = await self.create_order(self.gw, self.symbols[0], ORDER_ACTION_SELL, 0, 2.3, ORDER_TYPE_MARKET)
+            s, e = await self.create_order(self.gw, self.symbols[0], ORDER_ACTION_BUY, 10000, 1.2)
+            s, e = await self.create_order(self.gw, self.symbols[0], ORDER_ACTION_SELL, 6500, 0.5)
+            s, e = await self.create_order(self.gw, self.symbols[0], ORDER_ACTION_BUY, 5000, 1)
+            s, e = await self.create_order(self.gw, self.symbols[0], ORDER_ACTION_SELL, 15000, 1)
+            s, e = await self.revoke_order(self.gw, self.symbols[0], s, "123", "234")
 
     async def on_orderbook_update_callback(self, orderbook: Orderbook):
         """ 订单薄更新
