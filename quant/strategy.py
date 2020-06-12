@@ -8,7 +8,11 @@ Author: HJQuant
 Description: Asynchronous driven quantitative trading framework
 """
 
+import sys
+import os
 import asyncio
+import numpy as np
+import pandas as pd
 from collections import namedtuple
 
 from quant.gateway import ExchangeGateway
@@ -444,8 +448,29 @@ class Strategy(ExchangeGateway.ICallBack):
         """ 回测或者数据矩阵工作完毕
         """
         if config.backtest: #回测模式
-            #这里应该生成回测结果报告
-            pass
+            #保存成交列表到csv文件
+            csv_file = os.path.dirname(os.path.abspath(sys.argv[0])) + "/trade.csv"
+            if os.path.isdir(csv_file) or os.path.ismount(csv_file) or os.path.islink(csv_file):
+                logger.error("无效的csv文件")
+                return
+            if os.path.isfile(csv_file):
+                os.remove(csv_file)
+            result = []
+            for param in config.platforms:
+                platform = param["platform"]
+                account = param["account"]
+                symbols = param["symbols"]
+                for sym in symbols:
+                    fills = self.pm.get_fills_by_symbol(platform, account, sym)
+                    for f in fills:
+                        result.append(vars(f))
+            #保存到csv
+            df = pd.DataFrame(result)
+            df.to_csv(csv_file)
+            #接下来读取csv文件进行分析,生成回测报告(还未实现)
+            #...
+            logger.info("回测完毕", caller=self)
+            self.stop()
         elif config.datamatrix: #数据矩阵模式
             logger.info("datamatrix 完毕", caller=self)
             self.stop()

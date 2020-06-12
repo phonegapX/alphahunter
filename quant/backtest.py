@@ -66,7 +66,8 @@ class BaseMatchEngine(with_metaclass(ABCMeta)):
         self._platform = kwargs.get("databind")
         self._symbol = symbol #绑定的交易对符号
         self._seq_gen = SequenceGenerator()
-        self._commission_rate = config.backtest["feature"][self._platform]["commission_rate"] #手续费
+        self._maker_commission_rate = config.backtest["feature"][self._platform]["maker_commission_rate"] #maker手续费
+        self._taker_commission_rate = config.backtest["feature"][self._platform]["taker_commission_rate"] #taker手续费
 
     def next_fill_no(self):
         return "trade_{}_{}_{:0>8d}".format(self._platform, self._symbol, self._seq_gen.get_next('trade_id'))
@@ -75,10 +76,16 @@ class BaseMatchEngine(with_metaclass(ABCMeta)):
         return "order_{}_{}_{:0>8d}".format(self._platform, self._symbol, self._seq_gen.get_next('order_id'))
 
     @property
-    def commission_rate(self):
-        """ 交易手续费
+    def maker_commission_rate(self):
+        """ maker交易手续费
         """
-        return self._commission_rate
+        return self._maker_commission_rate
+
+    @property
+    def taker_commission_rate(self):
+        """ taker交易手续费
+        """
+        return self._taker_commission_rate
 
     @abstractmethod
     async def on_kline_update_callback(self, kline: Kline):
@@ -250,7 +257,7 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     tradevolmue = quantity #直接模拟全部成交
                     trademoney = tradeprice*tradevolmue #成交金额
                     #对于现货交易,手续费是从接收币种里面扣除
-                    fee = tradevolmue*self.commission_rate
+                    fee = tradevolmue*self.maker_commission_rate
                     tradevolmue -= fee
                     #订单通知
                     o.remain = 0
@@ -297,7 +304,7 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     tradeprice = self._last_kline.close_avg_fillna
                     trademoney = o.quantity*tradeprice #模拟全部成交
                     #对于现货交易,手续费是从接收币种里面扣除
-                    fee = trademoney*self.commission_rate
+                    fee = trademoney*self.maker_commission_rate
                     trademoney -= fee
                     #订单通知
                     o.remain = 0
@@ -398,7 +405,7 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                 #市价买单quantity指的是'钱'
                 tradevolmue = quantity/tradeprice
                 #对于现货交易,手续费是从接收币种里面扣除
-                fee = tradevolmue*self.commission_rate
+                fee = tradevolmue*self.taker_commission_rate
                 tradevolmue -= fee
                 #订单通知
                 order_no = self.next_order_no()
@@ -458,7 +465,7 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                 tradeprice = self._last_kline.close_avg_fillna
                 trademoney = quantity*tradeprice
                 #对于现货交易,手续费是从接收币种里面扣除
-                fee = trademoney*self.commission_rate
+                fee = trademoney*self.taker_commission_rate
                 trademoney -= fee
                 #订单通知
                 order_no = self.next_order_no()
@@ -552,7 +559,7 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     tradevolmue = quantity #直接模拟全部成交
                     trademoney = tradeprice*tradevolmue #成交金额
                     #对于现货交易,手续费是从接收币种里面扣除
-                    fee = tradevolmue*self.commission_rate
+                    fee = tradevolmue*self.taker_commission_rate
                     tradevolmue -= fee
                     #订单通知
                     order_no = self.next_order_no()
@@ -644,7 +651,7 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     tradeprice = self._last_kline.close_avg_fillna
                     trademoney = quantity*tradeprice
                     #对于现货交易,手续费是从接收币种里面扣除
-                    fee = trademoney*self.commission_rate
+                    fee = trademoney*self.taker_commission_rate
                     trademoney -= fee
                     #订单通知
                     order_no = self.next_order_no()

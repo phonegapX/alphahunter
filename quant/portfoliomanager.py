@@ -34,10 +34,8 @@ class PortfolioManager(object):
         """
         self._assets: DefaultDict[str, Asset] = defaultdict(Asset)
         self._positions: DefaultDict[str, Position] = defaultdict(Position)
-        self._orders: DefaultDict[str, Dict[str, Order]] = defaultdict(dict) #两级字典
-        #self._orders: DefaultDict[str, DefaultDict[str, Order]] = defaultdict(lambda:defaultdict(Order)) #两级字典
-        self._fills: DefaultDict[str, Dict[str, Dict[str, Fill]]] = defaultdict(dict) #三级字典
-        #self._fills: DefaultDict[str, DefaultDict[str, DefaultDict[str, Fill]]] = defaultdict(lambda:defaultdict(lambda:defaultdict(Fill))) #三级字典
+        self._orders: DefaultDict[str, DefaultDict[str, Order]] = defaultdict(lambda:defaultdict(lambda:None)) #两级字典
+        self._fills: DefaultDict[str, DefaultDict[str, DefaultDict[str, Fill]]] = defaultdict(lambda:defaultdict(lambda:defaultdict(lambda:None))) #三级字典
 
     def on_asset_update(self, asset: Asset):
         """资产变化
@@ -61,44 +59,40 @@ class PortfolioManager(object):
         """订单成交
         """
         key = sha256(fill.platform + fill.account + fill.symbol)
-        if not self._fills[key].get(fill.order_no):
-            self._fills[key][fill.order_no] = {}
         self._fills[key][fill.order_no][fill.fill_no] = fill
         
-    def get_asset(platform, account) -> Asset:
+    def get_asset(self, platform, account) -> Asset:
         """从本地获取账户的资产信息
         """
         key = sha256(platform + account)
         return self._assets[key]
         
-    def get_position(platform, account, symbol) -> Position:
+    def get_position(self, platform, account, symbol) -> Position:
         """从本地获取指定的持仓信息
         """
         key = sha256(platform + account + symbol)
         return self._positions[key]
     
-    def get_order(platform, account, symbol, order_no) -> Order:
+    def get_order(self, platform, account, symbol, order_no) -> Order:
         """从本地获取指定的挂单信息
         """
         key = sha256(platform + account + symbol)
         return self._orders[key][order_no]
     
-    def get_orders(platform, account, symbol):
+    def get_orders(self, platform, account, symbol):
         """从本地获取某个符号下的所有挂单
         """
         key = sha256(platform + account + symbol)
         d = self._orders[key]
         return d.values()
-        #for v in d.values():
-        #    yield v
 
-    def get_fills_by_order_no(platform, account, symbol, order_no) -> DefaultDict[str, Fill]:
+    def get_fills_by_order_no(self, platform, account, symbol, order_no) -> DefaultDict[str, Fill]:
         """从本地获取指定挂单的所有成交
         """
         key = sha256(platform + account + symbol)
         return self._fills[key][order_no]
 
-    def get_fills_by_symbol(platform, account, symbol):
+    def get_fills_by_symbol(self, platform, account, symbol):
         """从本地获取指定符号的所有成交
         """
         key = sha256(platform + account + symbol)

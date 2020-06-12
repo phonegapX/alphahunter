@@ -71,7 +71,8 @@
                     "ETH": 100,
                     "USDT": 10000
                 },
-                "commission_rate": 0.02
+                "maker_commission_rate": 0.002,
+                "taker_commission_rate": 0.003
             },
             "huobi_future": {
                 "syminfo": {
@@ -108,7 +109,8 @@
                     "BTC": 10,
                     "ETH": 100
                 },
-                "commission_rate": 0.002,
+                "maker_commission_rate": 0.0002,
+                "taker_commission_rate": 0.0003,
                 "leverage": 10
             }
         }

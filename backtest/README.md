@@ -48,7 +48,8 @@
                 "ETH": 100,
                 "USDT": 10000
             },
-            "commission_rate": 0.02 //手续费
+            "maker_commission_rate": 0.002, //maker手续费
+            "taker_commission_rate": 0.003  //taker手续费
         },
         "huobi_future": { //本例子是火币合约交易平台
             "syminfo": {
@@ -85,7 +86,8 @@
                 "BTC": 10,
                 "ETH": 100
             },
-            "commission_rate": 0.002,
+            "maker_commission_rate": 0.0002, //maker手续费
+            "taker_commission_rate": 0.0003, //taker手续费
             "leverage": 10 //杠杆比率
         }
     }
