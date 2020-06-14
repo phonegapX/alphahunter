@@ -187,3 +187,21 @@ def float_to_str(f, p=20):
     ctx = decimal.Context(p)
     d1 = ctx.create_decimal(repr(f))
     return format(d1, 'f')
+
+
+def decimal_truncate(f, ndigits, rounding=False):
+    """ 对小数进行截断,保留指定位数
+    @param f 浮点数参数
+    @param ndigits 保留位数
+    @param rounding 是否四舍五入,默认否
+    """
+    if rounding: #进行四舍五入
+        format_spec = '.{}f'.format(ndigits)
+        return format(f, format_spec)
+    else: #不进行四舍五入,直接截断
+        base = 10**ndigits
+        return int(f * base) / base
+
+
+#print(decimal_truncate(100.12345, 4))
+#print(decimal_truncate(100.12345, 4, True))

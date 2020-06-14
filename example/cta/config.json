@@ -1,0 +1,61 @@
+{
+    "RABBITMQ": {
+        "host": "127.0.0.1",
+        "port": 5672,
+        "username": "guest",
+        "password": "guest"
+    },
+    "MONGODB": {
+        "host": "127.0.0.1",
+        "port": 27017,
+        "username": "root",
+        "password": "123456",
+        "dbname": "admin"
+    },
+    "LOG": {
+        "console": true,
+        "level": "DEBUG",
+        "path": "C:/Users/Administrator/Desktop/log",
+        "name": "quant.log",
+        "clear": false,
+        "backup_count": 5
+    },
+    "PLATFORMS": [
+        {
+            "platform": "huobi",
+            "account": "test",
+            "access_key": "xxxxxxxxxxxx",
+            "secret_key": "xxxxxxxxxxxx",
+            "symbols": ["btcusdt"]
+        }
+    ],
+    "BACKTEST": {
+        "start_time": "2020-04-27",
+        "period_day": "30",
+        "drive_type": ["kline"],
+        "feature": {
+            "huobi": {
+                "syminfo": {
+                    "btcusdt": {
+                        "type": "spot",
+                        "price_tick": 0.01,
+                        "size_tick": 0.0001,
+                        "size_limit": 0.0001,
+                        "value_tick": 1,
+                        "value_limit": 10,
+                        "base_currency": "BTC",
+                        "quote_currency": "USDT",
+                        "settlement_currency": "USDT"
+                    }
+                },
+                "asset": {
+                    "BTC": 1,
+                    "USDT": 10000
+                },
+                "maker_commission_rate": 0.002,
+                "taker_commission_rate": 0.003
+            }
+        }
+    },
+    "strategy": "cta_strategy"
+}

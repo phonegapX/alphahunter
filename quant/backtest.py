@@ -263,7 +263,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     o.remain = 0
                     o.status = ORDER_STATUS_FILLED
                     o.utime = ts
-                    await self.cb.on_order_update_callback(o)
+                    if self.cb.on_order_update_callback:
+                        await self.cb.on_order_update_callback(o)
                     #成交通知
                     fill_no = self.next_fill_no()
                     f = {
@@ -281,7 +282,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                         "ctime": ts
                     }
                     fill = Fill(**f)
-                    await self.cb.on_fill_update_callback(fill)
+                    if self.cb.on_fill_update_callback:
+                        await self.cb.on_fill_update_callback(fill)
                     #账户资产通知
                     #'货'增加
                     bc['free'] += tradevolmue
@@ -294,7 +296,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     sc['total'] = sc['free'] + sc['locked']
                     #
                     ast = Asset(self._platform, self._account, self._trader._assets, ts, True)
-                    await self.cb.on_asset_update_callback(ast)
+                    if self.cb.on_asset_update_callback:
+                        await self.cb.on_asset_update_callback(ast)
                     #删除订单簿中的订单
                     del self._orders[o.order_no]
             elif o.action == ORDER_ACTION_SELL: #卖单
@@ -310,7 +313,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     o.remain = 0
                     o.status = ORDER_STATUS_FILLED
                     o.utime = ts
-                    await self.cb.on_order_update_callback(o)
+                    if self.cb.on_order_update_callback:
+                        await self.cb.on_order_update_callback(o)
                     #成交通知
                     fill_no = self.next_fill_no()
                     f = {
@@ -328,7 +332,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                         "ctime": ts
                     }
                     fill = Fill(**f)
-                    await self.cb.on_fill_update_callback(fill)
+                    if self.cb.on_fill_update_callback:
+                        await self.cb.on_fill_update_callback(fill)
                     #账户资产通知
                     #释放挂单占用的'货'
                     bc['locked'] -= o.quantity
@@ -341,7 +346,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     sc['total'] = sc['free'] + sc['locked']
                     #
                     ast = Asset(self._platform, self._account, self._trader._assets, ts, True)
-                    await self.cb.on_asset_update_callback(ast)
+                    if self.cb.on_asset_update_callback:
+                        await self.cb.on_asset_update_callback(ast)
                     #删除订单簿中的订单
                     del self._orders[o.order_no]
 
@@ -427,7 +433,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     #trade_type
                 }
                 order = Order(**o)
-                await self.cb.on_order_update_callback(order)
+                if self.cb.on_order_update_callback:
+                    await self.cb.on_order_update_callback(order)
                 #成交通知
                 fill_no = self.next_fill_no()
                 f = {
@@ -445,7 +452,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     "ctime": ts
                 }
                 fill = Fill(**f)
-                await self.cb.on_fill_update_callback(fill)
+                if self.cb.on_fill_update_callback:
+                    await self.cb.on_fill_update_callback(fill)
                 #账户资产通知
                 #'货'增加
                 bc['free'] += tradevolmue
@@ -455,7 +463,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                 sc['total'] = sc['free'] + sc['locked']
                 #
                 ast = Asset(self._platform, self._account, self._trader._assets, ts, True)
-                await self.cb.on_asset_update_callback(ast)
+                if self.cb.on_asset_update_callback:
+                    await self.cb.on_asset_update_callback(ast)
             elif action == ORDER_ACTION_SELL: #卖
                 bc = self._trader._assets[base_currency]
                 sc = self._trader._assets[settlement_currency]
@@ -487,7 +496,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     #trade_type
                 }
                 order = Order(**o)
-                await self.cb.on_order_update_callback(order)
+                if self.cb.on_order_update_callback:
+                    await self.cb.on_order_update_callback(order)
                 #成交通知
                 fill_no = self.next_fill_no()
                 f = {
@@ -505,7 +515,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     "ctime": ts
                 }
                 fill = Fill(**f)
-                await self.cb.on_fill_update_callback(fill)
+                if self.cb.on_fill_update_callback:
+                    await self.cb.on_fill_update_callback(fill)
                 #账户资产通知
                 #'货'减少
                 bc['free'] -= quantity
@@ -515,7 +526,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                 sc['total'] = sc['free'] + sc['locked']
                 #
                 ast = Asset(self._platform, self._account, self._trader._assets, ts, True)
-                await self.cb.on_asset_update_callback(ast)
+                if self.cb.on_asset_update_callback:
+                    await self.cb.on_asset_update_callback(ast)
         elif order_type == ORDER_TYPE_LIMIT: #限价单
             if action == ORDER_ACTION_BUY: #买
                 bc = self._trader._assets[base_currency]
@@ -545,14 +557,16 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     }
                     order = Order(**o)
                     self._orders[order_no] = order #进入订单簿
-                    await self.cb.on_order_update_callback(order)
+                    if self.cb.on_order_update_callback:
+                        await self.cb.on_order_update_callback(order)
                     #账户资产通知
                     #'钱'需要被锁定一部分
                     sc['locked'] += quantity*price #挂单部分所占用的资金需要被锁定
                     sc['free'] = sc['total'] - sc['locked']
                     #
                     ast = Asset(self._platform, self._account, self._trader._assets, ts, True)
-                    await self.cb.on_asset_update_callback(ast)
+                    if self.cb.on_asset_update_callback:
+                        await self.cb.on_asset_update_callback(ast)
                 else: #直接成交
                     #收盘均价模拟成交价
                     tradeprice = self._last_kline.close_avg_fillna
@@ -581,7 +595,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                         #trade_type
                     }
                     order = Order(**o)
-                    await self.cb.on_order_update_callback(order)
+                    if self.cb.on_order_update_callback:
+                        await self.cb.on_order_update_callback(order)
                     #成交通知
                     fill_no = self.next_fill_no()
                     f = {
@@ -599,7 +614,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                         "ctime": ts
                     }
                     fill = Fill(**f)
-                    await self.cb.on_fill_update_callback(fill)
+                    if self.cb.on_fill_update_callback:
+                        await self.cb.on_fill_update_callback(fill)
                     #账户资产通知
                     #'货'增加
                     bc['free'] += tradevolmue
@@ -609,7 +625,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     sc['total'] = sc['free'] + sc['locked']
                     #
                     ast = Asset(self._platform, self._account, self._trader._assets, ts, True)
-                    await self.cb.on_asset_update_callback(ast)
+                    if self.cb.on_asset_update_callback:
+                        await self.cb.on_asset_update_callback(ast)
             elif action == ORDER_ACTION_SELL: #卖
                 bc = self._trader._assets[base_currency]
                 sc = self._trader._assets[settlement_currency]
@@ -638,14 +655,16 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     }
                     order = Order(**o)
                     self._orders[order_no] = order #进入订单簿
-                    await self.cb.on_order_update_callback(order)
+                    if self.cb.on_order_update_callback:
+                        await self.cb.on_order_update_callback(order)
                     #账户资产通知
                     #'货'需要被锁定一部分
                     bc['locked'] += quantity #挂单部分所占用的'货'需要被锁定
                     bc['free'] = bc['total'] - bc['locked']
                     #
                     ast = Asset(self._platform, self._account, self._trader._assets, ts, True)
-                    await self.cb.on_asset_update_callback(ast)
+                    if self.cb.on_asset_update_callback:
+                        await self.cb.on_asset_update_callback(ast)
                 else: #直接成交
                     #收盘均价模拟成交价
                     tradeprice = self._last_kline.close_avg_fillna
@@ -673,7 +692,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                         #trade_type
                     }
                     order = Order(**o)
-                    await self.cb.on_order_update_callback(order)
+                    if self.cb.on_order_update_callback:
+                        await self.cb.on_order_update_callback(order)
                     #成交通知
                     fill_no = self.next_fill_no()
                     f = {
@@ -691,7 +711,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                         "ctime": ts
                     }
                     fill = Fill(**f)
-                    await self.cb.on_fill_update_callback(fill)
+                    if self.cb.on_fill_update_callback:
+                        await self.cb.on_fill_update_callback(fill)
                     #账户资产通知
                     #'货'减少
                     bc['free'] -= quantity
@@ -701,7 +722,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     sc['total'] = sc['free'] + sc['locked']
                     #
                     ast = Asset(self._platform, self._account, self._trader._assets, ts, True)
-                    await self.cb.on_asset_update_callback(ast)
+                    if self.cb.on_asset_update_callback:
+                        await self.cb.on_asset_update_callback(ast)
         elif order_type == ORDER_TYPE_IOC:
             raise NotImplementedError
         #返回订单号
@@ -827,7 +849,8 @@ class BacktestTrader(VirtualTrader):
         match_engine = self.match_engine_dict[kline.symbol]
         await match_engine.on_kline_update_callback(kline)
         #调用原K线回调函数(上层策略)
-        await self._original_on_kline_update_callback(kline)
+        if self._original_on_kline_update_callback:
+            await self._original_on_kline_update_callback(kline)
 
     async def on_orderbook_update_callback(self, orderbook: Orderbook):
         """ 订单薄方式驱动回测引擎
@@ -836,7 +859,8 @@ class BacktestTrader(VirtualTrader):
         match_engine = self.match_engine_dict[orderbook.symbol]
         await match_engine.on_orderbook_update_callback(orderbook)
         #调用原订单薄回调函数(上层策略)
-        await self._original_on_orderbook_update_callback(orderbook)
+        if self._original_on_orderbook_update_callback:
+            await self._original_on_orderbook_update_callback(orderbook)
 
     async def on_trade_update_callback(self, trade: Trade):
         """ 市场成交方式驱动回测引擎
@@ -845,7 +869,8 @@ class BacktestTrader(VirtualTrader):
         match_engine = self.match_engine_dict[trade.symbol]
         await match_engine.on_trade_update_callback(trade)
         #调用原市场成交回调函数(上层策略)
-        await self._original_on_trade_update_callback(trade)
+        if self._original_on_trade_update_callback:
+            await self._original_on_trade_update_callback(trade)
 
     async def init_asset(self):
         """ 读取回测配置信息中的初始化资产,通知上层策略
@@ -857,7 +882,8 @@ class BacktestTrader(VirtualTrader):
             self._assets[k]["total"] = float(v)
         #通知上层策略
         ast = Asset(self._platform, self._account, self._assets, ts, True)
-        await self.cb.on_asset_update_callback(ast)
+        if self.cb.on_asset_update_callback:
+            await self.cb.on_asset_update_callback(ast)
 
     async def launch(self):
         """ 模拟交易接口连接初始化成功
