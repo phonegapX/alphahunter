@@ -11,7 +11,7 @@ Description: Asynchronous driven quantitative trading framework
 from abc import ABCMeta, abstractmethod
 from six import with_metaclass
 
-from quant.market import Kline, Orderbook, Trade, Ticker 
+from quant.market import Kline, Orderbook, Trade, Ticker
 from quant.asset import Asset
 from quant.position import Position
 from quant.order import Order, Fill, ORDER_TYPE_LIMIT
@@ -19,10 +19,10 @@ from quant.state import State
 
 
 class ExchangeGateway(with_metaclass(ABCMeta)):
-    """ 
+    """
     交易所接口基类
     """
- 
+
     @abstractmethod
     async def get_orders(self, symbol):
         """ 获取当前挂单列表
@@ -114,7 +114,15 @@ class ExchangeGateway(with_metaclass(ABCMeta)):
             success: If execute successfully, return True, otherwise it's False.
             error: If execute failed, return error information, otherwise it's None.
         """
-    
+
+    @staticmethod
+    def mapping_layer(self):
+        """ 获取符号映射关系.
+        Returns:
+            layer: 符号映射关系
+        """
+
+
     class ICallBack(with_metaclass(ABCMeta)):
         """
         交易所信息通知回调接口

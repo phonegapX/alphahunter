@@ -301,15 +301,16 @@ version: 1.0.0
 
 >>响应数据
 
-| Name           | Schema  | Description                 |
-| :------------- | :-------| :-------------------------- |
-| price_tick     | number  | `报价`每一跳的最小单位      |
-| size_tick      | number  | `下单量`每一跳的最小单位    |
-| size_limit     | number  | 最小`下单量`                |
-| value_tick     | number  | `下单金额`每一跳的最小单位  |
-| value_limit    | number  | 最小`下单金额`              |
-| base_currency  | number  | 交易对中的基础币种          |
-| quote_currency | number  | 交易对中的报价币种          |
+| Name                | Schema  | Description                 |
+| :------------------ | :-------| :-------------------------- |
+| price_tick          | number  | `报价`每一跳的最小单位      |
+| size_tick           | number  | `下单量`每一跳的最小单位    |
+| size_limit          | number  | 最小`下单量`                |
+| value_tick          | number  | `下单金额`每一跳的最小单位  |
+| value_limit         | number  | 最小`下单金额`              |
+| base_currency       | number  | 交易对中的基础币种          |
+| quote_currency      | number  | 交易对中的报价币种          |
+| settlement_currency | number  | 交易对中的结算币种          |
 
 >>响应示例
 
@@ -324,8 +325,9 @@ version: 1.0.0
             "size_limit": 10,
             "value_tick": 1,
             "value_limit": 10,
-            "base_currency": "eth",
-            "quote_currency": "usdt"
+            "base_currency": "ETH",
+            "quote_currency": "USDT",
+            "settlement_currency": "USDT"
         }
     }
 ```
@@ -403,7 +405,7 @@ version: 1.0.0
         "topic": "order",
         "data":
         {
-            "symbol": "ethusdt",
+            "symbol": "ETH/USDT",
             "order_no": "2510832677225474",
             "action": "SELL",
             "price": 2189.6,
@@ -430,7 +432,7 @@ version: 1.0.0
         "topic": "fill",
         "data":
         {
-            "symbol": "ethusdt",
+            "symbol": "ETH/USDT",
             "order_no": "2510832677225474",
             "fill_no": "9302836",
             "price": 2189.6,
@@ -455,7 +457,7 @@ version: 1.0.0
         "topic": "position",
         "data":
         {
-            "symbol": "ethusdt",
+            "symbol": "ETH/USDT",
 
             "margin_mode": "crossed",
 

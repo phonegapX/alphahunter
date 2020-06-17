@@ -24,7 +24,7 @@
     "PLATFORMS": [
         {
             "platform": "okex",
-            "symbols": ["BTC-USDT","ETH-USDT","EOS-USDT"]
+            "symbols": ["BTC/USDT","ETH/USDT","EOS/USDT"]
         }
     ],
     "strategy": "okex_collect"

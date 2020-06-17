@@ -26,7 +26,7 @@
             "account": "test",
             "access_key": "xxxxxxxxxxxx",
             "secret_key": "xxxxxxxxxxxx",
-            "symbols": ["btcusdt","ethusdt"]
+            "symbols": ["BTC/USDT","ETH/USDT"]
         },
         {
             "platform": "huobi_future",
@@ -39,11 +39,11 @@
     "BACKTEST": {
         "start_time": "2020-04-20",
         "period_day": "1",
-        "drive_type": ["kline"],
+        "drive_type": ["kline", "trade", "orderbook"],
         "feature": {
             "huobi": {
                 "syminfo": {
-                    "btcusdt": {
+                    "BTC/USDT": {
                         "type": "spot",
                         "price_tick": 0.01,
                         "size_tick": 0.0001,
@@ -54,7 +54,7 @@
                         "quote_currency": "USDT",
                         "settlement_currency": "USDT"
                     },
-                    "ethusdt": {
+                    "ETH/USDT": {
                         "type": "spot",
                         "price_tick": 0.01,
                         "size_tick": 0.01,

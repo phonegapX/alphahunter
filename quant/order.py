@@ -158,7 +158,7 @@ class SymbolInfo:
         settlement_currency: 交易对中的结算币种
     """
     
-    def __init__(self, platform=None, symbol=None, price_tick:float=None, size_tick:float=None, size_limit:float=None, value_tick:float=None, value_limit:float=None, base_currency=None, quote_currency=None, settlement_currency=None):
+    def __init__(self, platform=None, symbol=None, price_tick:float=None, size_tick:float=None, size_limit:float=None, value_tick:float=None, value_limit:float=None, base_currency="", quote_currency="", settlement_currency=""):
         self.platform = platform
         self.symbol = symbol
         self.price_tick = price_tick

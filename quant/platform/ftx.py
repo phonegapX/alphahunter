@@ -758,6 +758,14 @@ class FTXTrader(Websocket, ExchangeGateway):
         fill = Fill(**info)
         SingleTask.run(self.cb.on_fill_update_callback, fill)
 
+    @staticmethod
+    def mapping_layer():
+        """ 获取符号映射关系.
+        Returns:
+            layer: 符号映射关系
+        """
+        return None #FTX不需要符号映射
+
 
 class FTXMarket(Websocket):
     """ FTX Trade module. You can initialize trader object with some attributes in kwargs.

@@ -24,7 +24,6 @@ from quant.order import Order, Fill
 from quant.position import Position
 from quant.asset import Asset
 from quant.tasks import LoopRunTask, SingleTask
-from quant.gateway import ExchangeGateway
 from quant.trader import Trader
 from quant.strategy import Strategy
 from quant.event import EventOrderbook, EventKline, EventTrade, EventTicker

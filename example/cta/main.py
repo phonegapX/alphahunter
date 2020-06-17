@@ -20,7 +20,6 @@ from quant.order import Order, Fill, ORDER_ACTION_BUY, ORDER_ACTION_SELL, ORDER_
 from quant.position import Position
 from quant.asset import Asset
 from quant.tasks import LoopRunTask, SingleTask
-from quant.gateway import ExchangeGateway
 from quant.trader import Trader
 from quant.strategy import Strategy
 from quant.utils.decorator import async_method_locker
@@ -62,10 +61,10 @@ class CTAStrategy(CTAController):
             "enable_position_update": False,
             "enable_asset_update": True,
 
-            "direct_kline_update": True, #回测模式下必须为True,实盘模式请修改为False
-            "direct_orderbook_update": True, #回测模式下必须为True,实盘模式请修改为False
-            "direct_trade_update": True, #回测模式下必须为True,实盘模式请修改为False
-            "direct_ticker_update": True #回测模式下必须为True,实盘模式请修改为False
+            "direct_kline_update": False,
+            "direct_orderbook_update": False,
+            "direct_trade_update": False,
+            "direct_ticker_update": False
         }
         self.gw = self.create_gateway(**params)
         #注册定时器

@@ -52,7 +52,7 @@ version: 1.0.0
         "op": "login",
         "cid": "xxxxx",
         "platform": "huobi_future",
-        "symbols": ["btcusdt","ethusdt"],
+        "symbols": ["BTC/USDT","ETH/USDT"],
         "access_key": "xxxxxxxxxxxxx",
         "secret_key": "xxxxxxxxxxxxx"
     }
@@ -100,7 +100,7 @@ order_type包括"LIMIT"和"MARKET"和"IOC".
         "op": "place_order",
         "cid": "xxxxx",
         "token": "xxxxxxxxxxx",
-        "symbol": "ethusdt",
+        "symbol": "ETH/USDT",
         "action": "SELL",
         "price": 219.24,
         "quantity": 5.6,
@@ -148,7 +148,7 @@ order_type包括"LIMIT"和"MARKET"和"IOC".
         "op": "cancel_order",
         "cid": "xxxxx",
         "token": "xxxxxxxxxxx",
-        "symbol": "ethusdt",
+        "symbol": "ETH/USDT",
         "order_nos": ["2510832677225473","2510832677225474"]
     }
 ```
@@ -202,7 +202,7 @@ order_type包括"LIMIT"和"MARKET"和"IOC".
         "op": "open_orders",
         "cid": "xxxxx",
         "token": "xxxxxxxxxxx",
-        "symbol": "ethusdt"
+        "symbol": "ETH/USDT"
     }
 ```
 
@@ -330,7 +330,7 @@ order_type包括"LIMIT"和"MARKET"和"IOC".
         "op": "position",
         "cid": "xxxxx",
         "token": "xxxxxxxxxxx",
-        "symbol": "ethusdt"
+        "symbol": "ETH/USDT"
     }
 ```
 
@@ -408,7 +408,7 @@ order_type包括"LIMIT"和"MARKET"和"IOC".
         "op": "symbol_info",
         "cid": "xxxxx",
         "token": "xxxxxxxxxxx",
-        "symbol": "ethusdt"
+        "symbol": "ETH/USDT"
     }
 ```
 
@@ -434,21 +434,23 @@ order_type包括"LIMIT"和"MARKET"和"IOC".
             "size_limit": 10,
             "value_tick": 1,
             "value_limit": 10,
-            "base_currency": "eth",
-            "quote_currency": "usdt"
+            "base_currency": "ETH",
+            "quote_currency": "USDT",
+            "settlement_currency": "USDT"
         }
     }
 ```
 
-| Name           | Schema  | Description                 |
-| :------------- | :-------| :-------------------------- |
-| price_tick     | number  | `报价`每一跳的最小单位      |
-| size_tick      | number  | `下单量`每一跳的最小单位    |
-| size_limit     | number  | 最小`下单量`                |
-| value_tick     | number  | `下单金额`每一跳的最小单位  |
-| value_limit    | number  | 最小`下单金额`              |
-| base_currency  | number  | 交易对中的基础币种          |
-| quote_currency | number  | 交易对中的报价币种          |
+| Name                | Schema  | Description                 |
+| :------------------ | :-------| :-------------------------- |
+| price_tick          | number  | `报价`每一跳的最小单位       |
+| size_tick           | number  | `下单量`每一跳的最小单位     |
+| size_limit          | number  | 最小`下单量`                 |
+| value_tick          | number  | `下单金额`每一跳的最小单位   |
+| value_limit         | number  | 最小`下单金额`               |
+| base_currency       | number  | 交易对中的基础币种           |
+| quote_currency      | number  | 交易对中的报价币种           |
+| settlement_currency | number  | 交易对中的结算币种           |
 
 
 
@@ -506,7 +508,7 @@ order_type包括"LIMIT"和"MARKET"和"IOC".
         "token": "xxxxxxxxxxx",
         "data":
         {
-            "symbol": "ethusdt",
+            "symbol": "ETH/USDT",
             "order_no": "2510832677225474",
             "action": "SELL",
             "price": 2189.6,
@@ -534,7 +536,7 @@ order_type包括"LIMIT"和"MARKET"和"IOC".
         "token": "xxxxxxxxxxx",
         "data":
         {
-            "symbol": "ethusdt",
+            "symbol": "ETH/USDT",
             "order_no": "2510832677225474",
             "fill_no": "9302836",
             "price": 2189.6,
@@ -560,7 +562,7 @@ order_type包括"LIMIT"和"MARKET"和"IOC".
         "token": "xxxxxxxxxxx",
         "data":
         {
-            "symbol": "ethusdt",
+            "symbol": "ETH/USDT",
 
             "margin_mode": "crossed",
 

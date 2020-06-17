@@ -20,8 +20,8 @@ class NrModel(object):
 
     def __init__(self):
 
-        #这个model订阅‘btcusdt’
-        self.symbols = ['btcusdt']
+        #这个model订阅‘BTC/USDT’
+        self.symbols = ['BTC/USDT']
 
         self.mode_params = {
             'fixed_volume': 0.03, #每次买卖0.03个btc

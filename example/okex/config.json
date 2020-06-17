@@ -13,7 +13,7 @@
             "access_key": "xxxxxxxxxxxx",
             "secret_key": "xxxxxxxxxxxx",
             "passphrase": "mytest",
-            "symbols": ["ETH-USDT", "BTC-USDT"]
+            "symbols": ["ETH/USDT","BTC/USDT"]
         }
     ],
     "strategy": "my_test_strategy"

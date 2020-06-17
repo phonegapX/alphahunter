@@ -38,6 +38,7 @@ from quant.order import ORDER_TYPE_LIMIT, ORDER_TYPE_MARKET, ORDER_TYPE_IOC
 from quant.order import LIQUIDITY_TYPE_MAKER, LIQUIDITY_TYPE_TAKER
 from quant.order import ORDER_STATUS_SUBMITTED, ORDER_STATUS_PARTIAL_FILLED, ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED, ORDER_STATUS_FAILED
 from quant.market import Kline, Orderbook, Trade, Ticker
+from quant.trader import Trader
 
 
 __all__ = ("HuobiRestAPI", "HuobiTrader", )
@@ -1022,6 +1023,39 @@ class HuobiTrader(Websocket, ExchangeGateway):
             self._assets[c]["free"] = float(b)
         ast = Asset(self._platform, self._account, self._assets, tm, True)
         SingleTask.run(self.cb.on_asset_update_callback, ast)
+
+    @staticmethod
+    def mapping_layer():
+        """ 获取符号映射关系.
+        Returns:
+            layer: 符号映射关系
+        """
+        layer = Trader.MAPPING_LAYER()
+        layer.is_upper = True
+        layer.map_dict = {
+            "BTC/USDT": "btcusdt",
+            "ETH/USDT": "ethusdt",
+            "EOS/USDT": "eosusdt",
+            "BCH/USDT": "bchusdt",
+            "BSV/USDT": "bsvusdt",
+            "LTC/USDT": "ltcusdt",
+            "XRP/USDT": "xrpusdt",
+            "ADA/USDT": "adausdt",
+            "TRX/USDT": "trxusdt",
+            #
+            "ETH/BTC": "ethbtc",
+            "EOS/BTC": "eosbtc",
+            "BCH/BTC": "bchbtc",
+            "BSV/BTC": "bsvbtc",
+            "LTC/BTC": "ltcbtc",
+            "XRP/BTC": "xrpbtc",
+            "ADA/BTC": "adabtc",
+            "TRX/BTC": "trxbtc",
+            #
+            "EOS/ETH": "eoseth",
+            "TRX/ETH": "trxeth"
+        }
+        return layer
 
 
 class HuobiMarket(Websocket):

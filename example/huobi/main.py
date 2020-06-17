@@ -21,7 +21,6 @@ from quant.order import Order, Fill, ORDER_ACTION_BUY, ORDER_ACTION_SELL, ORDER_
 from quant.position import Position
 from quant.asset import Asset
 from quant.tasks import LoopRunTask
-from quant.gateway import ExchangeGateway
 from quant.trader import Trader
 from quant.strategy import Strategy
 from quant.utils.decorator import async_method_locker
@@ -83,19 +82,19 @@ class DemoStrategy(Strategy):
         
         if state.code == State.STATE_CODE_READY: #交易接口准备好
             #收到此状态通知,证明指定交易接口准备就绪,可以对其进行操作,比如下单
-            #s, e = await self.create_order(self.gw, "eoseth", ORDER_ACTION_SELL, 0.02, 0.6)
-            #s, e = await self.create_order(self.gw, "eoseth", ORDER_ACTION_SELL, 0, 8, ORDER_TYPE_MARKET)
-            #s, e = await self.create_order(self.gw, "eoseth", ORDER_ACTION_BUY, 0.01, 2)
-            #s, e = await self.create_order(self.gw, "eoseth", ORDER_ACTION_BUY, 0, 0.02, ORDER_TYPE_MARKET)
-            #s, e = await self.create_order(self.gw, "eoseth", ORDER_ACTION_SELL, 0.02, 1, ORDER_TYPE_IOC)
-            #s, e = await self.create_order(self.gw, "eoseth", ORDER_ACTION_BUY, 0.01, 1, ORDER_TYPE_IOC)
-            s, e = await self.get_symbol_info(self.gw, "eoseth")
+            #s, e = await self.create_order(self.gw, "EOS/ETH", ORDER_ACTION_SELL, 0.02, 0.6)
+            #s, e = await self.create_order(self.gw, "EOS/ETH", ORDER_ACTION_SELL, 0, 8, ORDER_TYPE_MARKET)
+            #s, e = await self.create_order(self.gw, "EOS/ETH", ORDER_ACTION_BUY, 0.01, 2)
+            #s, e = await self.create_order(self.gw, "EOS/ETH", ORDER_ACTION_BUY, 0, 0.02, ORDER_TYPE_MARKET)
+            #s, e = await self.create_order(self.gw, "EOS/ETH", ORDER_ACTION_SELL, 0.02, 1, ORDER_TYPE_IOC)
+            #s, e = await self.create_order(self.gw, "EOS/ETH", ORDER_ACTION_BUY, 0.01, 1, ORDER_TYPE_IOC)
+            s, e = await self.get_symbol_info(self.gw, "EOS/ETH")
             s, e = await self.get_assets(self.gw)
-            s, e = await self.get_orders(self.gw, "eoseth")
-            #s, e = await self.invalid_indicate(self.gw, "eoseth", const.INDICATE_ASSET)
-            #s, e = await self.invalid_indicate(self.gw, "eoseth", const.INDICATE_ORDER)
-            #s, e = await self.revoke_order(self.gw, "eoseth", "70873572342")
-            #s, e = await self.revoke_order(self.gw, "eoseth")
+            s, e = await self.get_orders(self.gw, "EOS/ETH")
+            #s, e = await self.invalid_indicate(self.gw, "EOS/ETH", const.INDICATE_ASSET)
+            #s, e = await self.invalid_indicate(self.gw, "EOS/ETH", const.INDICATE_ORDER)
+            #s, e = await self.revoke_order(self.gw, "EOS/ETH", "70873572342")
+            #s, e = await self.revoke_order(self.gw, "EOS/ETH")
         elif state.code == State.STATE_CODE_CONNECT_SUCCESS:    #交易接口连接成功
             pass #仅仅是通知一下,实际策略可以不用过于关注此状态
         elif state.code == State.STATE_CODE_CONNECT_FAILED:     #交易接口连接失败

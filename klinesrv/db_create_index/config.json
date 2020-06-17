@@ -9,7 +9,7 @@
     "PLATFORMS": [
         {
             "platform": "huobi",
-            "symbols": ["btcusdt","ethusdt","eosusdt"]
+            "symbols": ["BTC/USDT","ETH/USDT","EOS/USDT"]
         }
     ],
     "strategy": "huobi_create_index"

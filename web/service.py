@@ -512,7 +512,8 @@ def symbol_info(resp, msg):
                         "value_tick": success.value_tick,
                         "value_limit": success.value_limit,
                         "base_currency": success.base_currency,
-                        "quote_currency": success.quote_currency
+                        "quote_currency": success.quote_currency,
+                        "settlement_currency": success.settlement_currency
                     }
                 }
             await response(resp, r)

@@ -140,3 +140,11 @@ class DataMatrixTrader(VirtualTrader):
             error: If execute failed, return error information, otherwise it's None.
         """
         raise NotImplementedError #datamatrix模块不需要此功能
+
+    @staticmethod
+    def mapping_layer():
+        """ 获取符号映射关系.
+        Returns:
+            layer: 符号映射关系
+        """
+        return None #DataMatrix模块不需要符号映射

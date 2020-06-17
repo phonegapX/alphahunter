@@ -23,7 +23,7 @@
     "PLATFORMS": [
         {
             "platform": "huobi",
-            "symbols": ["btcusdt"]
+            "symbols": ["BTC/USDT"]
         }
     ],
     "strategy": "huobi_klinesrv"

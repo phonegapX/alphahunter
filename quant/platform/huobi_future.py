@@ -1223,6 +1223,14 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
                 if self._syminfo[sym]["symbol"] in [d["symbol"] for d in data["data"]]:
                     SingleTask.run(self.cb.on_position_update_callback, pos)
 
+    @staticmethod
+    def mapping_layer():
+        """ 获取符号映射关系.
+        Returns:
+            layer: 符号映射关系
+        """
+        return None #火币合约平台不需要符号映射
+
 
 class HuobiFutureMarket(Websocket):
     """ Huobi Future Market Server.

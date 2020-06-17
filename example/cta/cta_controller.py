@@ -23,7 +23,6 @@ from quant.order import Order, Fill, ORDER_ACTION_BUY, ORDER_ACTION_SELL, ORDER_
 from quant.position import Position
 from quant.asset import Asset
 from quant.tasks import LoopRunTask, SingleTask
-from quant.gateway import ExchangeGateway
 from quant.trader import Trader
 from quant.strategy import Strategy
 from quant.utils.decorator import async_method_locker

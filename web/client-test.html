@@ -41,7 +41,7 @@
               "op": "open_orders",
               "cid": "10004",
               "token": token,
-              "symbol": "ethusdt"
+              "symbol": "ETH/USDT"
             }
             alert(JSON.stringify(o));
             conn.send(JSON.stringify(o)); //查询当前挂单
@@ -58,7 +58,7 @@
               "op": "symbol_info",
               "cid": "10007",
               "token": token,
-              "symbol": "ethusdt"
+              "symbol": "ETH/USDT"
             }
             alert(JSON.stringify(o));
             conn.send(JSON.stringify(o)); //查询符号信息
@@ -67,7 +67,7 @@
               "op": "place_order",
               "cid": "10002",
               "token": token,
-              "symbol": "ethusdt",
+              "symbol": "ETH/USDT",
               "action": "SELL",
               "price": 269.24,
               "quantity": 0.05,
@@ -96,7 +96,7 @@
               "op": "login",
               "cid": "10001",
               "platform": "huobi",
-              "symbols": ["btcusdt","ethusdt"],
+              "symbols": ["BTC/USDT","ETH/USDT"],
               "access_key": "test",
               "secret_key": "test"
           };
@@ -114,7 +114,7 @@
               "op": "cancel_order",
               "cid": "10003",
               "token": token,
-              "symbol": "ethusdt",
+              "symbol": "ETH/USDT",
               "order_nos": [obj.order_no, "1234567890123"]
             }
             alert(JSON.stringify(o));

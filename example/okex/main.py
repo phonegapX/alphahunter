@@ -21,7 +21,6 @@ from quant.order import Order, Fill, ORDER_ACTION_BUY, ORDER_ACTION_SELL, ORDER_
 from quant.position import Position
 from quant.asset import Asset
 from quant.tasks import LoopRunTask
-from quant.gateway import ExchangeGateway
 from quant.trader import Trader
 from quant.strategy import Strategy
 from quant.utils.decorator import async_method_locker
@@ -85,21 +84,21 @@ class DemoStrategy(Strategy):
         
         if state.code == State.STATE_CODE_READY: #交易接口准备好
             #收到此状态通知,证明指定交易接口准备就绪,可以对其进行操作,比如下单
-            #s, e = await self.create_order(self.gw, "ETH-USDT", ORDER_ACTION_SELL, 299, 0.07)
-            #s, e = await self.create_order(self.gw, "ETH-USDT", ORDER_ACTION_SELL, 0, 0.007, ORDER_TYPE_MARKET)
-            #s, e = await self.create_order(self.gw, "ETH-USDT", ORDER_ACTION_BUY, 202, 0.37)
-            #s, e = await self.create_order(self.gw, "ETH-USDT", ORDER_ACTION_BUY, 0, 1, ORDER_TYPE_MARKET)
-            #s, e = await self.create_order(self.gw, "ETH-USDT", ORDER_ACTION_SELL, 293, 0.013, ORDER_TYPE_IOC)
-            #s, e = await self.create_order(self.gw, "ETH-USDT", ORDER_ACTION_BUY, 291.7, 0.003, ORDER_TYPE_IOC)
-            #s, e = await self.get_symbol_info(self.gw, "ETH-USDT")
+            #s, e = await self.create_order(self.gw, "ETH/USDT", ORDER_ACTION_SELL, 299, 0.07)
+            #s, e = await self.create_order(self.gw, "ETH/USDT", ORDER_ACTION_SELL, 0, 0.007, ORDER_TYPE_MARKET)
+            #s, e = await self.create_order(self.gw, "ETH/USDT", ORDER_ACTION_BUY, 202, 0.37)
+            #s, e = await self.create_order(self.gw, "ETH/USDT", ORDER_ACTION_BUY, 0, 1, ORDER_TYPE_MARKET)
+            #s, e = await self.create_order(self.gw, "ETH/USDT", ORDER_ACTION_SELL, 293, 0.013, ORDER_TYPE_IOC)
+            #s, e = await self.create_order(self.gw, "ETH/USDT", ORDER_ACTION_BUY, 291.7, 0.003, ORDER_TYPE_IOC)
+            #s, e = await self.get_symbol_info(self.gw, "ETH/USDT")
             #s, e = await self.get_assets(self.gw)
-            s, e = await self.get_orders(self.gw, "ETH-USDT")
-            #s, e = await self.invalid_indicate(self.gw, "ETH-USDT", const.INDICATE_ASSET)
-            #s, e = await self.invalid_indicate(self.gw, "ETH-USDT", const.INDICATE_ORDER)
-            #s, e = await self.revoke_order(self.gw, "ETH-USDT", "4453499365904384", "4453499041822720", "123456")
-            #s, e = await self.revoke_order(self.gw, "ETH-USDT", "4453522234819584")
-            #s, e = await self.revoke_order(self.gw, "ETH-USDT", "123456")
-            #s, e = await self.revoke_order(self.gw, "ETH-USDT")
+            s, e = await self.get_orders(self.gw, "ETH/USDT")
+            #s, e = await self.invalid_indicate(self.gw, "ETH/USDT", const.INDICATE_ASSET)
+            #s, e = await self.invalid_indicate(self.gw, "ETH/USDT", const.INDICATE_ORDER)
+            #s, e = await self.revoke_order(self.gw, "ETH/USDT", "4453499365904384", "4453499041822720", "123456")
+            #s, e = await self.revoke_order(self.gw, "ETH/USDT", "4453522234819584")
+            #s, e = await self.revoke_order(self.gw, "ETH/USDT", "123456")
+            #s, e = await self.revoke_order(self.gw, "ETH/USDT")
         elif state.code == State.STATE_CODE_CONNECT_SUCCESS:    #交易接口连接成功
             pass #仅仅是通知一下,实际策略可以不用过于关注此状态
         elif state.code == State.STATE_CODE_CONNECT_FAILED:     #交易接口连接失败

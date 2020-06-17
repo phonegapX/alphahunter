@@ -26,7 +26,7 @@
             "account": "test",
             "access_key": "xxxxxxxxxxxx",
             "secret_key": "xxxxxxxxxxxx",
-            "symbols": ["btcusdt"]
+            "symbols": ["BTC/USDT"]
         }
     ],
     "DATAMATRIX": {

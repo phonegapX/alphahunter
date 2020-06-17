@@ -41,6 +41,7 @@ from quant.market import Kline, Orderbook, Trade, Ticker
 from quant.history import VirtualTrader
 from quant.infra_api import InfraAPI
 from quant.interface.model_api import ModelAPI
+from quant.trader import Trader
 
 
 __all__ = ("BacktestTrader",)
@@ -994,3 +995,11 @@ class BacktestTrader(VirtualTrader):
         """
         match_engine = self.match_engine_dict[symbol] #通过交易对符号找到相应回测撮合引擎
         return await match_engine.invalid_indicate(indicate_type)
+
+    @staticmethod
+    def mapping_layer():
+        """ 获取符号映射关系.
+        Returns:
+            layer: 符号映射关系
+        """
+        return None #回测模块不需要符号映射

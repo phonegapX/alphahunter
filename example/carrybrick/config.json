@@ -20,7 +20,7 @@
             "account": "test",
             "access_key": "xxxxxxxxxxxx",
             "secret_key": "xxxxxxxxxxxx",
-            "symbols": ["ethusdt"]
+            "symbols": ["ETH/USDT"]
         },
         {
             "platform": "okex",
@@ -28,7 +28,7 @@
             "access_key": "xxxxxxxxxxxx",
             "secret_key": "xxxxxxxxxxxx",
             "passphrase": "mytest",
-            "symbols": ["ETH-USDT"]
+            "symbols": ["ETH/USDT"]
         }
     ],
     "strategy": "carrybrick"

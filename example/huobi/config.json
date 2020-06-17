@@ -11,14 +11,14 @@
             "account": "test/subacc2",
             "access_key": "xxxxxxxxxxxx",
             "secret_key": "xxxxxxxxxxxx",
-            "symbols": ["eoseth","trxeth"]
+            "symbols": ["BTC/USDT","ETH/USDT"]
         },
         {
             "platform": "huobi",
             "account": "test",
             "access_key": "xxxxxxxxxxxx",
             "secret_key": "xxxxxxxxxxxx",
-            "symbols": ["eoseth","trxeth"]
+            "symbols": ["EOS/ETH","TRX/ETH"]
         }
     ],
     "strategy": "my_test_strategy"

@@ -20,7 +20,6 @@ from quant.order import Order, Fill, ORDER_ACTION_BUY, ORDER_ACTION_SELL, ORDER_
 from quant.position import Position
 from quant.asset import Asset
 from quant.tasks import LoopRunTask
-from quant.gateway import ExchangeGateway
 from quant.trader import Trader
 from quant.strategy import Strategy
 from quant.utils.decorator import async_method_locker
@@ -474,14 +473,14 @@ class CarryBrickStrategy(Strategy):
         
         balance = asset.assets #e.g. {"BTC": {"free": 1.1, "locked": 2.2, "total": 3.3}, ... }
         if asset.platform == self.platform_main: #获取[主交易所]的资产信息
-            self.eth_available_main = balance["eth"]["free"] #huobi交易所用的是小写符号
-            self.usdt_available_main = balance["usdt"]["free"]
+            self.eth_available_main = balance["ETH"]["free"]
+            self.usdt_available_main = balance["USDT"]["free"]
             if not self.eth_initial_main:
                 self.eth_initial_main = self.eth_available_main #策略开始时的初始资产
             if not self.usdt_initial_main:
                 self.usdt_initial_main = self.usdt_available_main #策略开始时的初始资产
         elif asset.platform == self.platform_reference: #获取[从交易所]的资产信息
-            self.eth_available_reference = balance["ETH"]["free"] #okex交易所用的是大写符号
+            self.eth_available_reference = balance["ETH"]["free"]
             self.usdt_available_reference = balance["USDT"]["free"]
             if not self.eth_initial_reference:
                 self.eth_initial_reference = self.eth_available_reference #策略开始时的初始资产

@@ -19,7 +19,6 @@ from quant.utils import tools, logger
 from quant.config import config
 from quant.market import Market, Kline, Orderbook, Trade, Ticker
 from quant.tasks import LoopRunTask
-from quant.gateway import ExchangeGateway
 from quant.trader import Trader
 from quant.strategy import Strategy
 from quant.utils.decorator import async_method_locker

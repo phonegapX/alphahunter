@@ -40,6 +40,7 @@ from quant.order import ORDER_TYPE_LIMIT, ORDER_TYPE_MARKET, ORDER_TYPE_IOC
 from quant.order import LIQUIDITY_TYPE_MAKER, LIQUIDITY_TYPE_TAKER
 from quant.order import ORDER_STATUS_SUBMITTED, ORDER_STATUS_PARTIAL_FILLED, ORDER_STATUS_FILLED, ORDER_STATUS_CANCELED, ORDER_STATUS_FAILED
 from quant.market import Kline, Orderbook, Trade, Ticker
+from quant.trader import Trader
 
 
 __all__ = ("OKExRestAPI", "OKExTrader", )
@@ -851,6 +852,39 @@ class OKExTrader(Websocket, ExchangeGateway):
             fill = Fill(**f)
             if self.cb.on_fill_update_callback:
                 SingleTask.run(self.cb.on_fill_update_callback, fill)
+
+    @staticmethod
+    def mapping_layer():
+        """ 获取符号映射关系.
+        Returns:
+            layer: 符号映射关系
+        """
+        layer = Trader.MAPPING_LAYER()
+        layer.is_upper = True
+        layer.map_dict = {
+            "BTC/USDT": "BTC-USDT",
+            "ETH/USDT": "ETH-USDT",
+            "EOS/USDT": "EOS-USDT",
+            "BCH/USDT": "BCH-USDT",
+            "BSV/USDT": "BSV-USDT",
+            "LTC/USDT": "LTC-USDT",
+            "XRP/USDT": "XRP-USDT",
+            "ADA/USDT": "ADA-USDT",
+            "TRX/USDT": "TRX-USDT",
+            #
+            "ETH/BTC": "ETH-BTC",
+            "EOS/BTC": "EOS-BTC",
+            "BCH/BTC": "BCH-BTC",
+            "BSV/BTC": "BSV-BTC",
+            "LTC/BTC": "LTC-BTC",
+            "XRP/BTC": "XRP-BTC",
+            "ADA/BTC": "ADA-BTC",
+            "TRX/BTC": "TRX-BTC",
+            #
+            "EOS/ETH": "EOS-ETH",
+            "TRX/ETH": "TRX-ETH"
+        }
+        return layer
 
 
 class OKExMarket(Websocket):
