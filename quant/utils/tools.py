@@ -8,6 +8,7 @@ Author: HJQuant
 Description: Asynchronous driven quantitative trading framework
 """
 
+import os
 import uuid
 import time
 import decimal
@@ -201,6 +202,23 @@ def decimal_truncate(f, ndigits, rounding=False):
     else: #不进行四舍五入,直接截断
         base = 10**ndigits
         return int(f * base) / base
+
+
+def create_dir(filename):
+    """
+    Create dir if directory of filename does not exist.
+
+    Parameters
+    ----------
+    filename : str
+
+    """
+    if not os.path.exists(os.path.dirname(filename)):
+        try:
+            os.makedirs(os.path.dirname(filename))
+        except OSError as exc:  # Guard against race condition
+            if exc.errno != errno.EEXIST:
+                raise
 
 
 #print(decimal_truncate(100.12345, 4))
