@@ -21,7 +21,7 @@ from matplotlib.ticker import Formatter
 
 from quant.utils import tools, logger
 from quant.config import config
-from quant.infra_api import InfraAPI
+from quant.interface.model_api import ModelAPI
 from quant.report import Report
 from quant import SOURCE_ROOT_DIR
 
@@ -48,8 +48,7 @@ MPL_RCPARAMS = {'figure.facecolor': '#F6F6F6',
                 'axes.titlesize': 18,
                 'axes.labelsize': 14,
                 'legend.fontsize': 'small',
-                'lines.linewidth': 2.5,
-                }
+                'lines.linewidth': 2.5}
 
 #打印能完整显示
 pd.set_option('display.max_columns', None)
@@ -68,7 +67,6 @@ class MyFormatter(Formatter):
         ind = int(np.round(x))
         if ind >= len(self.dates) or ind < 0:
             return ''
-
         # return self.dates[ind].strftime(self.fmt)
         return pd.to_datetime(self.dates[ind]/1000, unit='s').strftime(self.fmt)
 
@@ -76,15 +74,57 @@ class Analyzer(object):
     """
     """
     def __init__(self):
-        self.trades = None
-        self.closes = None
-        self.returns = None
-        self.daily = None
-        self.df_pnl = None
+        self.universe = []
+        self.closes = None #每日收盘价
+        self.trades = None #逐笔成交相关
+        self.daily = None  #每日成交统计相关
+        self.returns = None #日收益率相关
+        self.df_pnl = None #日盈亏
         self.daily_dic = dict()
-        self.performance_metrics = dict()
-        self.risk_metrics = dict()
-        self.report_dic = dict()
+        self.performance_metrics = dict() #业绩指标
+        self.risk_metrics = dict() #风险指标
+        self.report_dic = dict() #最终报告
+
+    async def get_daily_closes(self):
+        """ 获取每日收盘价
+        """
+        start_date = tools.datetime_str_to_ts(config.backtest["start_time"], fmt='%Y-%m-%d') #转换为时间戳
+        start_date *= 1000 #转换为毫秒时间戳
+        end_date = start_date + self.period_day*ONE_DAY #回测结束毫秒时间戳
+        
+        pd_list = []
+        
+        for x in config.platforms:
+            platform = x["platform"]
+            for sym in x["symbols"]:
+                r = await ModelAPI.get_klines_between(platform, sym, start_date, end_date)
+                if not r: #获取行情失败
+                    return None
+                df = pd.DataFrame()
+                df_temp = pd.DataFrame(r)
+                df['end_dt'] = df_temp['end_dt']
+                df['close'] = df_temp['close_avg_fillna']
+                df['platform'] = platform
+                df['symbol'] = sym
+                pd_list.append(df)
+
+        df = pd.concat(pd_list)
+        df['trade_date'] = (df['end_dt']+CHINA_TZONE_SHIFT)//ONE_DAY*ONE_DAY-CHINA_TZONE_SHIFT
+        df = df.set_index(['platform', 'symbol', 'trade_date']).sort_index(axis=0)
+        df = df.drop(['end_dt'], axis=1)
+
+        def _get_last(ser):
+            r = 0
+            if ser.count() > 0:
+                for i in range(1, ser.count()):
+                    r = ser.iat[-i]
+                    if r > 0:
+                        break
+            return r
+
+        gp = df.reset_index().groupby(by=['platform', 'symbol', 'trade_date'])
+        df = gp.agg({'close': _get_last}) #因为获取的是分钟级别收盘价,所以要合成为日级别的收盘价
+        return df
 
     async def initialize(self, file_folder='.'):
         """
@@ -102,62 +142,30 @@ class Analyzer(object):
                     'fee': float,
                     'ctime': np.int64}
 
-        trades = pd.read_csv(os.path.join(file_folder, 'trade.csv'), ',', dtype=type_map)
+        trades = pd.read_csv(os.path.join(file_folder, 'trades.csv'), ',', dtype=type_map)
         if trades.empty:
             return False
-        
         #因为我们时间用的都是东八区时间,换成时间戳以后并不是按天对齐的,为了能够按天对齐进行运算,要先加八小时,再减八小时
         trades['trade_date'] = (trades['ctime']+CHINA_TZONE_SHIFT)//ONE_DAY*ONE_DAY-CHINA_TZONE_SHIFT
+        self.trades = trades.set_index(['platform', 'symbol', 'ctime']).sort_index(axis=0)
+
+        self.trades.groupby(by=['platform', 'symbol']).apply(lambda gp_df: self.universe.append((gp_df.index.levels[0][0], gp_df.index.levels[1][0])))
 
         self.period_day = int(config.backtest["period_day"])
-        start_date = tools.datetime_str_to_ts(config.backtest["start_time"], fmt='%Y-%m-%d') #转换为时间戳
-        start_date *= 1000 #转换为毫秒时间戳
-        end_date = start_date + self.period_day*ONE_DAY #回测结束毫秒时间戳
 
-        self.trades = trades.set_index(['platform', 'symbol', 'ctime']).sort_index(axis=0)
+        closes = await self.get_daily_closes()
+        if closes is None:
+            return False
+        self.closes = closes
         
-        pd_list = []
-        
-        for x in config.platforms:
-            platform = x["platform"]
-            for sym in x["symbols"]:
-                r = await InfraAPI.get_klines_between(platform, sym, start_date, end_date)
-                if not r:
-                    print("获取行情失败")
-                    return False
-                df = pd.DataFrame()
-                df_temp = pd.DataFrame(r)
-                df['end_dt'] = df_temp['end_dt']
-                df['close'] = df_temp['close_avg_fillna']
-                df['platform'] = platform
-                df['symbol'] = sym
-                pd_list.append(df)
-
-        df = pd.concat(pd_list)
-        df['trade_date'] = (df['end_dt']+CHINA_TZONE_SHIFT)//ONE_DAY*ONE_DAY-CHINA_TZONE_SHIFT
-        df = df.set_index(['platform', 'symbol', 'trade_date']).sort_index(axis=0)
-
-        def _get_last(ser):
-            r = 0
-            if ser.count() > 0:
-                for i in range(1, ser.count()):
-                    r = ser.iat[-i]
-                    if r > 0:
-                        break
-            return r
-
-        df = df.drop(['end_dt'], axis=1)
-        gp = df.reset_index().groupby(by=['platform', 'symbol', 'trade_date'])
-        df = gp.agg({'close': _get_last})
-        self.closes = df
-        print(self.closes)
+        return True
 
     def process_trades(self):
         """
         """
         df = self.trades
         # pre-process
-        cols_to_drop = ['strategy', 'order_no', 'fill_no', 'liquidity']
+        cols_to_drop = ['account', 'strategy', 'order_no', 'fill_no', 'liquidity']
         df = df.drop(cols_to_drop, axis=1)
 
         def _apply(gp_df):
@@ -220,7 +228,6 @@ class Analyzer(object):
 
         gp = df.groupby(by=['platform', 'symbol'])
         self.trades = gp.apply(_apply)
-        print(self.trades)
 
     def process_daily(self):
         """
@@ -234,7 +241,7 @@ class Analyzer(object):
         gp = trade.reset_index().groupby(by=['platform', 'symbol', 'trade_date'])
         func_last = lambda ser: ser.iat[-1]
         df = gp.agg({'BuyVolume': np.sum, 'SellVolume': np.sum, 'commission': np.sum, 'TurnOver': np.sum,
-                        'position': func_last, 'CumNetTurnOver': func_last})
+                        'position': func_last, 'CumNetTurnOver': func_last}) #按日统计
         df.index.names = ['platform', 'symbol', 'trade_date']
         #
         df = pd.concat([close, df], axis=1, join='outer')
@@ -302,18 +309,29 @@ class Analyzer(object):
             gp_df['trading_pnl'] = trading_pnl
             gp_df['holding_pnl'] = holding_pnl
             gp_df['total_pnl'] = total_pnl
-            gp_df['trade_shares'] = daily_position_change
             return gp_df
 
         gp = df.groupby(by=['platform', 'symbol'])
         self.daily = gp.apply(_apply)
-        print(self.daily)
-        #
+        #报告输出的时候需要用到
         gp = self.daily.groupby(by=['platform', 'symbol'])
         for key, value in gp:
             k = key[1] + "@" + key[0]
             self.daily_dic[k] = value
-        
+
+    def fetch_init_balance(self):
+        """
+        """
+        init_balance = 0
+        for x in self.universe:
+            platform = x[0]
+            symbol = x[1]
+            syminfo = config.backtest["feature"][platform]["syminfo"][symbol]
+            sc = syminfo["settlement_currency"]
+            assets = config.backtest["feature"][platform]["asset"]
+            init_balance += assets[sc]
+        return init_balance
+
     def process_returns(self, compound_return=False):
         """
         """
@@ -322,7 +340,9 @@ class Analyzer(object):
         daily = daily.stack().unstack('platform').unstack('symbol')
         df_pnl = daily.sum(axis=1) #所有币种加在一起
         df_pnl = df_pnl.unstack(level=1)
-        strategy_value = df_pnl['total_pnl'].cumsum()+10000
+
+        init_balance = self.fetch_init_balance()
+        strategy_value = df_pnl['total_pnl'].cumsum()+init_balance
         benchmark = self.closes.unstack('platform').unstack('symbol').iloc[:, 0] #简单持币收益作为基准收益
         market_values = pd.concat([strategy_value, benchmark], axis=1).fillna(method='ffill')
         market_values.columns = ['strat', 'bench']
@@ -343,8 +363,8 @@ class Analyzer(object):
         active_cum = df_returns['active_cum'].values
         cum_peak = np.maximum.accumulate(active_cum)
         dd_to_cum_peak = (cum_peak - active_cum) / cum_peak
-        max_dd_end = np.argmax(dd_to_cum_peak)  # end of the period
-        max_dd_start = np.argmax(active_cum[:max_dd_end])  # start of period
+        max_dd_end = np.argmax(dd_to_cum_peak)  #end of the period
+        max_dd_start = np.argmax(active_cum[:max_dd_end])  #start of period
         max_dd = dd_to_cum_peak[max_dd_end]
 
         win_count = len(df_pnl[df_pnl.total_pnl > 0.0].index)
@@ -382,37 +402,37 @@ class Analyzer(object):
         self.risk_metrics['Maximum Drawdown end']   = df_returns.index[max_dd_end]
 
         self.performance_metrics_report = []
-        self.performance_metrics_report.append(('Annual Return (%)',        "{:,.2f}".format( self.performance_metrics['Annual Return (%)']))     )
-        self.performance_metrics_report.append(('Annual Volatility (%)',    "{:,.2f}".format( self.performance_metrics['Annual Volatility (%)'])) )
-        self.performance_metrics_report.append(('Sharpe Ratio',             "{:,.2f}".format( self.performance_metrics['Sharpe Ratio']))          )
+        self.performance_metrics_report.append(('Annual Return (%)',        "{:,.2f}".format(self.performance_metrics['Annual Return (%)']))     )
+        self.performance_metrics_report.append(('Annual Volatility (%)',    "{:,.2f}".format(self.performance_metrics['Annual Volatility (%)'])) )
+        self.performance_metrics_report.append(('Sharpe Ratio',             "{:,.2f}".format(self.performance_metrics['Sharpe Ratio']))          )
 
-        self.performance_metrics_report.append(('Total PNL',                "{:,.2f}".format( self.performance_metrics['Total PNL']))             )
-        self.performance_metrics_report.append(('Commission',               "{:,.2f}".format( self.performance_metrics['Commission']))            )
-        self.performance_metrics_report.append(('Number of Trades',         self.performance_metrics['Number of Trades'])                         )
-        self.performance_metrics_report.append(('Daily Win Rate(%)',        "{:,.2f}".format( self.performance_metrics['Daily Win Rate(%)']))     )
-        self.performance_metrics_report.append(('Daily Lose Rate(%)',       "{:,.2f}".format( self.performance_metrics['Daily Lose Rate(%)']))    )
+        self.performance_metrics_report.append(('Total PNL',                "{:,.2f}".format(self.performance_metrics['Total PNL']))             )
+        self.performance_metrics_report.append(('Commission',               "{:,.2f}".format(self.performance_metrics['Commission']))            )
+        self.performance_metrics_report.append(('Number of Trades',         self.performance_metrics['Number of Trades'])                        )
+        self.performance_metrics_report.append(('Daily Win Rate(%)',        "{:,.2f}".format(self.performance_metrics['Daily Win Rate(%)']))     )
+        self.performance_metrics_report.append(('Daily Lose Rate(%)',       "{:,.2f}".format(self.performance_metrics['Daily Lose Rate(%)']))    )
 
         self.dailypnl_metrics_report = []
-        self.dailypnl_metrics_report.append(('Daily PNL Max Time', max_pnl.index[0]))
+        self.dailypnl_metrics_report.append(('Daily PNL Max Time', tools.ts_to_datetime_str(max_pnl.index[0]/1000, fmt='%Y-%m-%d')))
         self.dailypnl_metrics_report.append(('Daily PNL Max',      "{:,.2f}".format(max_pnl.values[0])))
-        self.dailypnl_metrics_report.append(('Daily PNL Min Time', min_pnl.index[0]))
+        self.dailypnl_metrics_report.append(('Daily PNL Min Time', tools.ts_to_datetime_str(min_pnl.index[0]/1000, fmt='%Y-%m-%d')))
         self.dailypnl_metrics_report.append(('Daily PNL Min',      "{:,.2f}".format(min_pnl.values[0])))
         self.dailypnl_metrics_report.append(('Daily PNL Up  5%',   "{:,.2f}".format(up5pct)))
         self.dailypnl_metrics_report.append(('Daily PNL Low 5%',   "{:,.2f}".format(low5pct)))
 
         self.dailypnl_tail5_metrics_report = []
         for k, v in tail5_pnl.iteritems():
-            self.dailypnl_tail5_metrics_report.append((k, "{:,.2f}".format(v)))
+            self.dailypnl_tail5_metrics_report.append((tools.ts_to_datetime_str(k/1000, fmt='%Y-%m-%d'), "{:,.2f}".format(v)))
 
         self.dailypnl_top5_metrics_report = []
         for k, v in top5_pnl.iteritems():
-            self.dailypnl_top5_metrics_report.append((k,"{:,.2f}".format(v)))
+            self.dailypnl_top5_metrics_report.append((tools.ts_to_datetime_str(k/1000, fmt='%Y-%m-%d'), "{:,.2f}".format(v)))
 
         self.risk_metrics_report = []
-        self.risk_metrics_report.append(("Beta",                   "{:,.3f}".format( self.risk_metrics["Beta"]))                 )
-        self.risk_metrics_report.append(("Maximum Drawdown (%)",   "{:,.2f}".format( self.risk_metrics["Maximum Drawdown (%)"])) )
-        self.risk_metrics_report.append(("Maximum Drawdown start", self.risk_metrics["Maximum Drawdown start"])                  )
-        self.risk_metrics_report.append(("Maximum Drawdown end",   self.risk_metrics["Maximum Drawdown end"])                    )
+        self.risk_metrics_report.append(("Beta",                   "{:,.3f}".format(self.risk_metrics["Beta"]))                                                )
+        self.risk_metrics_report.append(("Maximum Drawdown (%)",   "{:,.2f}".format(self.risk_metrics["Maximum Drawdown (%)"]))                                )
+        self.risk_metrics_report.append(("Maximum Drawdown start", tools.ts_to_datetime_str(self.risk_metrics["Maximum Drawdown start"]/1000, fmt='%Y-%m-%d')) )
+        self.risk_metrics_report.append(("Maximum Drawdown end",   tools.ts_to_datetime_str(self.risk_metrics["Maximum Drawdown end"]/1000, fmt='%Y-%m-%d'))   )
 
         self.df_pnl = df_pnl
         self.returns = df_returns
@@ -443,6 +463,16 @@ class Analyzer(object):
 
         mpl.rcParams.update(old_mpl_rcparams)
 
+    def mts2str(self, daily_dic):
+        r = {}
+        for (k, v) in daily_dic.items():
+            v = v.reset_index()
+            v = v.drop(['close'], axis=1)
+            v['trade_date'] = [tools.ts_to_datetime_str(mts/1000, fmt='%Y-%m-%d') for mts in v['trade_date'].values]
+            v = v.set_index(['platform', 'symbol', 'trade_date']).sort_index(axis=0)
+            r[k] = v
+        return r
+
     def gen_report(self, source_dir, template_fn, out_folder='.'):
         """
         """
@@ -450,7 +480,7 @@ class Analyzer(object):
         dic['html_title'] = "Strategy Backtest Result"
         dic['props'] = config.backtest
         dic['selected_securities'] = list(self.daily_dic.keys())
-        dic['df_daily'] = self.daily_dic
+        dic['df_daily'] = self.mts2str(self.daily_dic)
         dic['performance_metrics_report'] = self.performance_metrics_report
         dic['risk_metrics_report'] = self.risk_metrics_report
         dic['dailypnl_metrics_report'] = self.dailypnl_metrics_report

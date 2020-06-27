@@ -24,10 +24,11 @@ from quant.portfoliomanager import PortfolioManager
 from quant.trader import Trader
 from quant.tasks import LoopRunTask, SingleTask
 from quant.utils.mongo import MongoDB
-from quant.utils import logger
+from quant.utils import tools, logger
 from quant.state import State
 from quant import const
 from quant.config import config
+from quant.analyze import Analyzer
 
 
 class Strategy(ExchangeGateway.ICallBack):
@@ -449,7 +450,9 @@ class Strategy(ExchangeGateway.ICallBack):
         """
         if config.backtest: #回测模式
             #保存成交列表到csv文件
-            csv_file = os.path.dirname(os.path.abspath(sys.argv[0])) + "/trade.csv"
+            result_dir_path = os.path.dirname(os.path.abspath(sys.argv[0])) + "/result_report"
+            csv_file = result_dir_path + "/trades.csv"
+            tools.create_dir(csv_file)
             if os.path.isdir(csv_file) or os.path.ismount(csv_file) or os.path.islink(csv_file):
                 logger.error("无效的csv文件")
                 return
@@ -467,7 +470,10 @@ class Strategy(ExchangeGateway.ICallBack):
             #保存到csv
             df = pd.DataFrame(result)
             df.to_csv(csv_file)
-            #接下来读取csv文件进行分析,生成回测报告(还未实现)
+            #接下来读取csv文件进行分析,生成回测报告
+            analyzer = Analyzer()
+            await analyzer.initialize(file_folder=result_dir_path)
+            analyzer.do_analyze(result_dir=result_dir_path)
             #...
             logger.info("回测完毕", caller=self)
             self.stop()
