@@ -471,10 +471,9 @@ class Strategy(ExchangeGateway.ICallBack):
             df = pd.DataFrame(result)
             df.to_csv(csv_file)
             #接下来读取csv文件进行分析,生成回测报告
-            analyzer = Analyzer()
-            await analyzer.initialize(file_folder=result_dir_path)
-            analyzer.do_analyze(result_dir=result_dir_path)
-            #...
+            analyzer = Analyzer() #回测结果分析器
+            if await analyzer.initialize(file_folder=result_dir_path):
+                analyzer.do_analyze(result_dir=result_dir_path)
             logger.info("回测完毕", caller=self)
             self.stop()
         elif config.datamatrix: #数据矩阵模式

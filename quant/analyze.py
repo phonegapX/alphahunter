@@ -25,7 +25,7 @@ from quant.interface.model_api import ModelAPI
 from quant.report import Report
 from quant import SOURCE_ROOT_DIR
 
-STATIC_FOLDER = os.path.abspath(os.path.join(SOURCE_ROOT_DIR, "static"))
+STATIC_FOLDER = os.path.abspath(os.path.join(SOURCE_ROOT_DIR, "static")) #模板文件
 
 TO_PCT = 100.0
 
@@ -71,16 +71,17 @@ class MyFormatter(Formatter):
         return pd.to_datetime(self.dates[ind]/1000, unit='s').strftime(self.fmt)
 
 class Analyzer(object):
+    """ 回测结果分析,生成回测报告
     """
-    """
+
     def __init__(self):
-        self.universe = []
+        self.universe = [] #交易符号列表
         self.closes = None #每日收盘价
         self.trades = None #逐笔成交相关
         self.daily = None  #每日成交统计相关
         self.returns = None #日收益率相关
         self.df_pnl = None #日盈亏
-        self.daily_dic = dict()
+        self.daily_dic = dict() #用于报告输出
         self.performance_metrics = dict() #业绩指标
         self.risk_metrics = dict() #风险指标
         self.report_dic = dict() #最终报告
@@ -144,30 +145,32 @@ class Analyzer(object):
 
         trades = pd.read_csv(os.path.join(file_folder, 'trades.csv'), ',', dtype=type_map)
         if trades.empty:
+            logger.error("error:", "无法读取成交列表", caller=self)
             return False
         #因为我们时间用的都是东八区时间,换成时间戳以后并不是按天对齐的,为了能够按天对齐进行运算,要先加八小时,再减八小时
         trades['trade_date'] = (trades['ctime']+CHINA_TZONE_SHIFT)//ONE_DAY*ONE_DAY-CHINA_TZONE_SHIFT
         self.trades = trades.set_index(['platform', 'symbol', 'ctime']).sort_index(axis=0)
-
+        #保存交易符号列表
         self.trades.groupby(by=['platform', 'symbol']).apply(lambda gp_df: self.universe.append((gp_df.index.levels[0][0], gp_df.index.levels[1][0])))
-
+        #回测天数
         self.period_day = int(config.backtest["period_day"])
-
+        #获取每日收盘价
         closes = await self.get_daily_closes()
         if closes is None:
+            logger.error("error:", "无法获取每日收盘价", caller=self)
             return False
         self.closes = closes
-        
+        #
         return True
 
     def process_trades(self):
-        """
+        """ 处理逐笔成交列表,计算并添加新的字段
         """
         df = self.trades
         # pre-process
         cols_to_drop = ['account', 'strategy', 'order_no', 'fill_no', 'liquidity']
-        df = df.drop(cols_to_drop, axis=1)
-
+        df = df.drop(cols_to_drop, axis=1) #抛弃不用的列
+        #
         def _apply(gp_df):
             direction = gp_df['side'].apply(lambda s: 1 if s=="BUY" else -1)
             price, quantity = gp_df['price'], gp_df['quantity']
@@ -214,10 +217,10 @@ class Analyzer(object):
             gp_df['TurnOver'] = turnover
             gp_df['CumVolume'] = quantity.cumsum()
             gp_df['CumTurnOver'] = turnover.cumsum()
-            gp_df['CumNetTurnOver'] = (turnover * -direction).cumsum()
-            gp_df['position'] = (quantity * direction).cumsum()
+            gp_df['CumNetTurnOver'] = (turnover * -direction).cumsum() #累计净成交额
+            gp_df['position'] = (quantity * direction).cumsum() #累计净成交量(当前持仓)
             if is_spot: #现货
-                gp_df['CumProfit'] = (gp_df['CumNetTurnOver'] + gp_df['position'] * price) #比如USDT+USDT
+                gp_df['CumProfit'] = (gp_df['CumNetTurnOver'] + gp_df['position'] * price) #累计净成交额+累计净成交量*成交价=累计盈亏(没计算手续费)
             elif is_future: #期货
                 if is_inverse: #反向合约
                     #gp_df['CumProfit'] = (gp_df['CumNetTurnOver'] + gp_df['position'] * mult / price) #比如BTC+BTC
@@ -225,28 +228,30 @@ class Analyzer(object):
                 else: #正向合约
                     gp_df['CumProfit'] = (gp_df['CumNetTurnOver'] + gp_df['position'] * price * mult) #比如USDT+USDT
             return gp_df
-
+        #按交易符号分组处理
         gp = df.groupby(by=['platform', 'symbol'])
         self.trades = gp.apply(_apply)
 
     def process_daily(self):
-        """
+        """ 每日成交处理
         """
         close = self.closes
         trade = self.trades
 
         # pro-process
         trade_cols = ['trade_date', 'BuyVolume', 'SellVolume', 'commission', 'position', 'CumNetTurnOver', 'TurnOver']
-        trade = trade.loc[:, trade_cols]
-        gp = trade.reset_index().groupby(by=['platform', 'symbol', 'trade_date'])
+        trade = trade.loc[:, trade_cols] #只留下需要的列
+        gp = trade.reset_index().groupby(by=['platform', 'symbol', 'trade_date']) #按天分组
         func_last = lambda ser: ser.iat[-1]
         df = gp.agg({'BuyVolume': np.sum, 'SellVolume': np.sum, 'commission': np.sum, 'TurnOver': np.sum,
                         'position': func_last, 'CumNetTurnOver': func_last}) #按日统计
         df.index.names = ['platform', 'symbol', 'trade_date']
         #
-        df = pd.concat([close, df], axis=1, join='outer')
+        df = pd.concat([close, df], axis=1, join='outer') #和每日收盘价连接到一起,如果某一天没有成交,下面会填默认值
 
         def _apply(gp_df):
+            """ 给每日成交统计添加新的列
+            """
             platform = gp_df.index.levels[0][0]
             symbol = gp_df.index.levels[1][0]
             syminfo = config.backtest["feature"][platform]["syminfo"][symbol]
@@ -259,10 +264,11 @@ class Analyzer(object):
                 is_future = True
                 is_inverse = syminfo["is_inverse"]
             #----------------------------------------------
+            #如果某一天没有成交,填默认值
             cols_nan_fill = ['close', 'position', 'CumNetTurnOver']
             gp_df[cols_nan_fill] = gp_df[cols_nan_fill].fillna(method='ffill')
             gp_df[cols_nan_fill] = gp_df[cols_nan_fill].fillna(0)
-            #
+            #如果某一天没有成交,填默认值
             cols_nan_to_zero = ['BuyVolume', 'SellVolume', 'commission']
             gp_df[cols_nan_to_zero] = gp_df[cols_nan_to_zero].fillna(0)
             #
@@ -284,8 +290,8 @@ class Analyzer(object):
                     cum_profit = cum_net_turnOver + mult * position * close
             #
             cum_profit_comm = cum_profit - commission.cumsum()
-            gp_df['CumProfit'] = cum_profit
-            gp_df['CumProfitComm'] = cum_profit_comm
+            gp_df['CumProfit'] = cum_profit #累计盈亏
+            gp_df['CumProfitComm'] = cum_profit_comm #计算了手续费后的累计盈亏
             #
             daily_net_turnover = cum_net_turnOver.diff(1)
             daily_net_turnover.iloc[0] = cum_net_turnOver.iloc[0]
@@ -293,8 +299,8 @@ class Analyzer(object):
             daily_position_change = position.diff(1)
             daily_position_change.iloc[0] = position.iloc[0]
             if is_spot: #现货
-                trading_pnl = (daily_net_turnover + close * daily_position_change - commission)
-                holding_pnl = (close.diff(1) * position.shift(1)).fillna(0.0)
+                trading_pnl = (daily_net_turnover + close * daily_position_change - commission) #每日交易盈亏(重点:指的是每日)
+                holding_pnl = (close.diff(1) * position.shift(1)).fillna(0.0) #每日持仓盈亏(重点:指的是每日)
             elif is_future: #期货
                 if is_inverse: #反向合约
                     #trading_pnl = (daily_net_turnover + mult * daily_position_change / close - commission)
@@ -306,11 +312,11 @@ class Analyzer(object):
                     holding_pnl = (mult * close.diff(1) * position.shift(1)).fillna(0.0)
             #
             total_pnl = trading_pnl + holding_pnl
-            gp_df['trading_pnl'] = trading_pnl
-            gp_df['holding_pnl'] = holding_pnl
-            gp_df['total_pnl'] = total_pnl
+            gp_df['trading_pnl'] = trading_pnl #每日交易盈亏(重点:指的是每日)
+            gp_df['holding_pnl'] = holding_pnl #每日持仓盈亏(重点:指的是每日)
+            gp_df['total_pnl'] = total_pnl #每日总盈亏(重点:指的是每日)
             return gp_df
-
+        #按交易符号分组处理
         gp = df.groupby(by=['platform', 'symbol'])
         self.daily = gp.apply(_apply)
         #报告输出的时候需要用到
@@ -320,7 +326,7 @@ class Analyzer(object):
             self.daily_dic[k] = value
 
     def fetch_init_balance(self):
-        """
+        """ 获取策略初始资金
         """
         init_balance = 0
         for x in self.universe:
@@ -333,53 +339,54 @@ class Analyzer(object):
         return init_balance
 
     def process_returns(self, compound_return=False):
-        """
+        """ 处理收益率
         """
         cols = ['trading_pnl', 'holding_pnl', 'total_pnl', 'commission', 'CumProfitComm', 'CumProfit', 'TurnOver']
         daily = self.daily.loc[:, cols]
         daily = daily.stack().unstack('platform').unstack('symbol')
-        df_pnl = daily.sum(axis=1) #所有币种加在一起
+        df_pnl = daily.sum(axis=1) #所有交易符号的值加在一起(横截面)
         df_pnl = df_pnl.unstack(level=1)
 
-        init_balance = self.fetch_init_balance()
-        strategy_value = df_pnl['total_pnl'].cumsum()+init_balance
+        init_balance = self.fetch_init_balance() #策略初始资金
+        strategy_value = df_pnl['total_pnl'].cumsum()+init_balance #策略资金每日变化列表(策略收益)
+        #一个策略收益好不好,需要与一个基准收益进行对比
         benchmark = self.closes.unstack('platform').unstack('symbol').iloc[:, 0] #简单持币收益作为基准收益
-        market_values = pd.concat([strategy_value, benchmark], axis=1).fillna(method='ffill')
+        market_values = pd.concat([strategy_value, benchmark], axis=1).fillna(method='ffill') #[策略收益,基准收益]
         market_values.columns = ['strat', 'bench']
         #get strategy & benchmark daily return, cumulative return
         df_returns = market_values.pct_change(periods=1).fillna(0.0)
         df_cum_returns = (df_returns.loc[:, ['strat', 'bench']] + 1.0).cumprod()
         df_returns = df_returns.join(df_cum_returns, rsuffix='_cum')
 
-        if compound_return:
+        if compound_return: #复合收益率
             df_returns.loc[:, 'active_cum'] = df_returns['strat_cum'] - df_returns['bench_cum'] + 1
             df_returns.loc[:, 'active'] = df_returns['active_cum'].pct_change(1).fillna(0.0)
         else:
-            df_returns.loc[:, 'active'] = df_returns['strat'] - df_returns['bench']
+            df_returns.loc[:, 'active'] = df_returns['strat'] - df_returns['bench'] #策略积极收益率=策略收益率-基准收益率
             df_returns.loc[:, 'active_cum'] = df_returns['active'].cumsum() + 1.0
 
-        years = self.period_day / 365.0
-
+        #计算最大回撤
         active_cum = df_returns['active_cum'].values
         cum_peak = np.maximum.accumulate(active_cum)
         dd_to_cum_peak = (cum_peak - active_cum) / cum_peak
         max_dd_end = np.argmax(dd_to_cum_peak)  #end of the period
         max_dd_start = np.argmax(active_cum[:max_dd_end])  #start of period
         max_dd = dd_to_cum_peak[max_dd_end]
-
+        #计算胜率
         win_count = len(df_pnl[df_pnl.total_pnl > 0.0].index)
         lose_count = len(df_pnl[df_pnl.total_pnl < 0.0].index)
         total_count = len(df_pnl.index)
         win_rate = win_count * 1.0 / total_count
         lose_rate = lose_count * 1.0 / total_count
-
-        max_pnl   = df_pnl.loc[:,'total_pnl'].nlargest(1)
-        min_pnl   = df_pnl.loc[:,'total_pnl'].nsmallest(1)
-        up5pct    = df_pnl.loc[:,'total_pnl'].quantile(0.95)
-        low5pct   = df_pnl.loc[:,'total_pnl'].quantile(0.05)
-        top5_pnl  = df_pnl.loc[:,'total_pnl'].nlargest(5)
-        tail5_pnl = df_pnl.loc[:,'total_pnl'].nsmallest(5)
-
+        #
+        max_pnl   = df_pnl.loc[:,'total_pnl'].nlargest(1) #最好的一天
+        min_pnl   = df_pnl.loc[:,'total_pnl'].nsmallest(1) #最坏的一天
+        up5pct    = df_pnl.loc[:,'total_pnl'].quantile(0.95) #95%分位
+        low5pct   = df_pnl.loc[:,'total_pnl'].quantile(0.05) #5%分位
+        top5_pnl  = df_pnl.loc[:,'total_pnl'].nlargest(5) #最好的五天
+        tail5_pnl = df_pnl.loc[:,'total_pnl'].nsmallest(5) #最坏的五天
+        #年化收益率,年化波动率,夏普比率
+        years = self.period_day / 365.0
         if compound_return:
             self.performance_metrics['Annual Return (%)'] = \
                 100 * (np.power(df_returns.loc[:, 'active_cum'].values[-1], 1. / years) - 1)
@@ -389,29 +396,29 @@ class Analyzer(object):
         self.performance_metrics['Annual Volatility (%)'] = 100 * (df_returns.loc[:, 'active'].std() * np.sqrt(365))
         self.performance_metrics['Sharpe Ratio'] = (self.performance_metrics['Annual Return (%)']
                                                     / self.performance_metrics['Annual Volatility (%)'])
-
+        #策略总交易次数,总盈亏,日胜率,日输率,总手续费
         self.performance_metrics['Number of Trades']   = len(self.trades.index)
         self.performance_metrics['Total PNL']          = df_pnl.loc[:,'total_pnl'].sum()
         self.performance_metrics['Daily Win Rate(%)']  = win_rate*100
         self.performance_metrics['Daily Lose Rate(%)'] = lose_rate*100
         self.performance_metrics['Commission']         = df_pnl.loc[:,'commission'].sum()
-
+        #贝塔值与最大回撤
         self.risk_metrics['Beta'] = np.corrcoef(df_returns.loc[:, 'bench'], df_returns.loc[:, 'strat'])[0, 1]
         self.risk_metrics['Maximum Drawdown (%)']   = max_dd * TO_PCT
         self.risk_metrics['Maximum Drawdown start'] = df_returns.index[max_dd_start]
         self.risk_metrics['Maximum Drawdown end']   = df_returns.index[max_dd_end]
-
+        #回测报告输出
+        #业绩指标报告
         self.performance_metrics_report = []
         self.performance_metrics_report.append(('Annual Return (%)',        "{:,.2f}".format(self.performance_metrics['Annual Return (%)']))     )
         self.performance_metrics_report.append(('Annual Volatility (%)',    "{:,.2f}".format(self.performance_metrics['Annual Volatility (%)'])) )
         self.performance_metrics_report.append(('Sharpe Ratio',             "{:,.2f}".format(self.performance_metrics['Sharpe Ratio']))          )
-
         self.performance_metrics_report.append(('Total PNL',                "{:,.2f}".format(self.performance_metrics['Total PNL']))             )
         self.performance_metrics_report.append(('Commission',               "{:,.2f}".format(self.performance_metrics['Commission']))            )
         self.performance_metrics_report.append(('Number of Trades',         self.performance_metrics['Number of Trades'])                        )
         self.performance_metrics_report.append(('Daily Win Rate(%)',        "{:,.2f}".format(self.performance_metrics['Daily Win Rate(%)']))     )
         self.performance_metrics_report.append(('Daily Lose Rate(%)',       "{:,.2f}".format(self.performance_metrics['Daily Lose Rate(%)']))    )
-
+        #日盈亏指标报告
         self.dailypnl_metrics_report = []
         self.dailypnl_metrics_report.append(('Daily PNL Max Time', tools.ts_to_datetime_str(max_pnl.index[0]/1000, fmt='%Y-%m-%d')))
         self.dailypnl_metrics_report.append(('Daily PNL Max',      "{:,.2f}".format(max_pnl.values[0])))
@@ -427,7 +434,7 @@ class Analyzer(object):
         self.dailypnl_top5_metrics_report = []
         for k, v in top5_pnl.iteritems():
             self.dailypnl_top5_metrics_report.append((tools.ts_to_datetime_str(k/1000, fmt='%Y-%m-%d'), "{:,.2f}".format(v)))
-
+        #风险指标报告
         self.risk_metrics_report = []
         self.risk_metrics_report.append(("Beta",                   "{:,.3f}".format(self.risk_metrics["Beta"]))                                                )
         self.risk_metrics_report.append(("Maximum Drawdown (%)",   "{:,.2f}".format(self.risk_metrics["Maximum Drawdown (%)"]))                                )
@@ -438,7 +445,7 @@ class Analyzer(object):
         self.returns = df_returns
 
     def plot_pnl(self, output_folder):
-        """
+        """ 生成回测报告所需图片
         """
         for (k, v) in self.daily_dic.items():
             plot_trades(v, symbol=k, output_folder=output_folder)
@@ -474,7 +481,7 @@ class Analyzer(object):
         return r
 
     def gen_report(self, source_dir, template_fn, out_folder='.'):
-        """
+        """ 生成回测报告
         """
         dic = dict()
         dic['html_title'] = "Strategy Backtest Result"
@@ -494,7 +501,7 @@ class Analyzer(object):
         r.output_html('report.html')
 
     def do_analyze(self, result_dir):
-        """
+        """ 开始分析,并且生成回测报告
         """
         tools.create_dir(os.path.join(os.path.abspath(result_dir), 'dummy.dummy')) #创建保存回测结果的目录
         self.process_trades()
