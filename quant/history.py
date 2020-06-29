@@ -74,6 +74,10 @@ class HistoryAdapter:
     async def start(cls):
         """ 开始喂历史数据
         """
+        if config.backtest and int(cls._period_day) < 3: #回测时间不能少于三天
+            logger.error("error:", "回测时间不能少于三天", caller=cls)
+            return
+
         thread_loop = asyncio.new_event_loop() #创建新的事件循环
         run_loop_thread = Thread(target=cls.new_loop_thread, args=(thread_loop,), name="_work_thread_") #新起线程运行事件循环, 防止阻塞主线程
         run_loop_thread.start() #运行线程，即运行协程事件循环
@@ -247,7 +251,6 @@ class VirtualTrader(HistoryAdapter, ExchangeGateway):
         """
         drive_type = row["drive_type"] #数据驱动方式
         if drive_type == "kline" and self.cb.on_kline_update_callback:
-            row = row.dropna()
             kw = row.to_dict()
             del kw["drive_type"]
             del kw["gw"]

@@ -370,8 +370,12 @@ class Analyzer(object):
         cum_peak = np.maximum.accumulate(active_cum)
         dd_to_cum_peak = (cum_peak - active_cum) / cum_peak
         max_dd_end = np.argmax(dd_to_cum_peak)  #end of the period
-        max_dd_start = np.argmax(active_cum[:max_dd_end])  #start of period
-        max_dd = dd_to_cum_peak[max_dd_end]
+        if max_dd_end > 0:
+            max_dd_start = np.argmax(active_cum[:max_dd_end])  #start of period
+            max_dd = dd_to_cum_peak[max_dd_end]
+        else:
+            max_dd_start = 0
+            max_dd = 0
         #计算胜率
         win_count = len(df_pnl[df_pnl.total_pnl > 0.0].index)
         lose_count = len(df_pnl[df_pnl.total_pnl < 0.0].index)

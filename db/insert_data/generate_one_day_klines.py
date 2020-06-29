@@ -114,7 +114,7 @@ if __name__ == '__main__':
     
     kline = Kline("huobi", "btcusdt") #数据库K线表读写
     trade = Trade("huobi", "btcusdt") #数据库逐笔成交表读写
-    begin_timestamp = int(datetime.datetime.strptime("2020-05-03", "%Y-%m-%d").timestamp() * 1000)
+    begin_timestamp = int(datetime.datetime.strptime("2020-06-26", "%Y-%m-%d").timestamp() * 1000)
     for i in range(0, 2):
         ts = begin_timestamp + ONE_DAY*i
         #
