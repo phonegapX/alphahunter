@@ -473,7 +473,11 @@ class OKExTrader(Websocket, ExchangeGateway):
         value_limit = None#原始数据中没有
         base_currency = info["base_currency"]
         quote_currency = info["quote_currency"]
-        syminfo = SymbolInfo(self._platform, symbol, price_tick, size_tick, size_limit, value_tick, value_limit, base_currency, quote_currency)
+        settlement_currency = info["quote_currency"]
+        symbol_type = "spot"
+        is_inverse = False
+        multiplier = 1
+        syminfo = SymbolInfo(self._platform, symbol, price_tick, size_tick, size_limit, value_tick, value_limit, base_currency, quote_currency, settlement_currency, symbol_type, is_inverse, multiplier)
         return syminfo, None
 
     async def invalid_indicate(self, symbol, indicate_type):

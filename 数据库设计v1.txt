@@ -1,23 +1,22 @@
-
 #交易所名称表
 TABLE t_exchange:
     name -->类型:字符串. 取值如下:
-		"binance"  #币安现货交易所
-		"binance_future"  #币安期货交易所
-		"okex"  #OKEX现货交易所
-		"okex_future"  #OKEX期货交易所
-		"okex_swap"  #OKEX永续交易所
-		"bitmex"  #BitMEX交易所
-		"huobi"  #火币现货交易所
-		"huobi_future"  #火币期货交易所
-		...........
+        "binance"  #币安现货交易所
+        "binance_future"  #币安期货交易所
+        "okex"  #OKEX现货交易所
+        "okex_future"  #OKEX期货交易所
+        "okex_swap"  #OKEX永续交易所
+        "bitmex"  #BitMEX交易所
+        "huobi"  #火币现货交易所
+        "huobi_future"  #火币期货交易所
+        ...........
 
 =================================================================================================================================
 
 #交易符号表
 TABLE t_symbol:
     exchange -->类型:字符串. 交易所名称,如上
-    name -->类型:字符串. 备注:对应交易所是什么符号,这里就是什么,不做任何转换,比如同一个`符号对`有些交易所是 btc/usdt 有些是btc_usdt,有些是btcusdt 
+    name -->类型:字符串. 备注:交易符号,如BTC/USDT, ETH/BTC
     research_usable -->类型：boolean default True
     trade_usable -->类型：boolean default True
 
@@ -80,11 +79,11 @@ TABLE t_kline_1min_xxx_yyy (如果是五分钟k线的话就是t_kline_5min_xxx_y
     sectional_volume -->类型:float. 备注:今日开盘到此时总成交量
     sectional_amount -->类型:float. 备注:今日开盘到此时总成交额
     sectional_avg_price -->类型:float. 备注:今日开盘到此时加权平均价
-    
+
     sectional_book_count -->类型:正整数. 备注:今日开盘到此时总成交笔数
     sectional_buy_book_count -->类型:正整数. 备注:今日开盘到此时主动买总成交笔数
     sectional_sell_book_count -->类型:正整数. 备注:今日开盘到此时主动卖总成交笔数
-    
+
     sectional_buy_volume -->类型:float. 备注:今日开盘到此时主动买入的成交量
     sectional_buy_amount -->类型:float. 备注:今日开盘到此时主动买入的成交额
     sectional_buy_avg_price -->类型:float. 备注:今日开盘到此时主买加权平均价
@@ -110,38 +109,36 @@ TABLE t_kline_1min_xxx_yyy (如果是五分钟k线的话就是t_kline_5min_xxx_y
 
 #符号的相关信息
 TABLE t_symbol_info:
-    exchange -->类型:字符串. 交易所名称
-    name -->类型:字符串. 备注:对应交易所是什么符号,这里就是什么,不做任何转换,比如同一个`符号对`有些交易所是 btc/usdt 有些是btc_usdt,有些是btcusdt
+    platform -->类型:字符串. 交易所名称
+    symbol -->类型:字符串. 备注:交易符号,如BTC/USDT, ETH/BTC
     price_tick -->类型:float. 备注:`报价`每一跳的最小单位,也可以理解为`报价`精度或者`报价`增量
     size_tick -->类型:float. 备注:`下单量`每一跳的最小单位,也可以理解为`下单量`精度或者`下单量`增量
     size_limit -->类型:float. 备注:最小`下单量` (`下单量`指当订单类型为`限价单`或`sell-market`时,下单接口传的'quantity')
     value_tick -->类型:float. 备注:`下单金额`每一跳的最小单位,也可以理解为`下单金额`精度或者`下单金额`增量
     value_limit -->类型:float. 备注:最小`下单金额` (`下单金额`指当订单类型为`限价单`时,下单接口传入的(quantity * price).当订单类型为`buy-market`时,下单接口传的'quantity')
+    base_currency -->类型:字符串. 备注:交易对中的基础币种
+    quote_currency -->类型:字符串. 备注:交易对中的报价币种
+    settlement_currency -->类型:字符串. 备注:交易对中的结算币种
+    symbol_type -->类型:字符串. 备注:符号类型,"spot"=现货,"future"=期货
+    is_inverse -->类型:bool. 备注:如果是期货的话,是否是反向合约
+    multiplier -->类型:float. 备注:合约乘数,合约大小
 
 ==================================================================================================================================
-
-# 关于我们考虑的交易对，对于买来的数据，或者我们主动采集的数据，我们需要考虑以下symbol中research_usable为True的交易对，现阶段，我们有binance的数据，所以，我们考虑：
-
-      btcusdt, ethusdt, ltcusdt, etcusdt, xrpusdt, eosusdt, bchusdt, bsvusdt, trxusdt，adausdt
-
-      ethbtc, ltcbtc, etcbtc, xrpbtc, eosbtc, bchbtc, bsvbtc, trxbtc, adabtc
-
-===================================================================================================================================
 
 # 关于计算
 
 1. Kline时间隔点划分：
-   10s： 00:00:00.000 - 00:00:9.999 （这一根k线的begin_dt就是由00:00:00.000换算过来，end_dt就是由00:00:9.999换算过来）
-         00：00:10.000 - 00:00:19.999
-         ......
+    10s： 00:00:00.000 - 00:00:9.999 （这一根k线的begin_dt就是由00:00:00.000换算过来，end_dt就是由00:00:9.999换算过来）
+        00：00:10.000 - 00:00:19.999
+        ......
 
-   1min： 00:00:00.000 - 00:00:59.999 
-         00：01:00.000 - 00:01:59.999
-         ......
+    1min： 00:00:00.000 - 00:00:59.999 
+        00：01:00.000 - 00:01:59.999
+        ......
 
-   5min: 00:00:00.000 - 00:04:59.999
-         00:05:00.000 - 00:09:59.999
-         ......
+    5min: 00:00:00.000 - 00:04:59.999
+        00:05:00.000 - 00:09:59.999
+        ......
 
 2. open = 当根k线从begin_dt开始之后的第一笔trade数据的tradeprice
 3. high = max(当根k线从begin_dt到end_dt之间的所有trade数据的tradeprice列表)
@@ -151,32 +148,32 @@ TABLE t_symbol_info:
 7. buy_avg_price = 这根k线之内，所有主买trade数据的amount之和 / 所有trade数据的volume之和
 8. sell_avg_price = 这根k线之内，所有主卖trade数据的amount之和 / 所有trade数据的volume之和
 9. open_avg:
-   10s: 这根k线前2秒的trade数据拿出来(比如：00:00:00.000 - 00:00:1.999)，
-         即 begin_dt <= t < begin_dt + 2 * 1000
-         open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
-         open_avg_check = sum(trade price * volume) / sum(volume)
-   1min: 这根k线前12秒的trade数据拿出来(比如：00:00:00.000 - 00:00:11.999)，
-         即 begin_dt <= t < begin_dt + 12 * 1000
-         open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
-         open_avg_check = sum(trade price * volume) / sum(volume)
-   5min: 这根k线前1分钟的trade数据拿出来(比如：00:00:00.000 - 00:00:59.999)，
-         即 begin_dt <= t < begin_dt + 1 * 60 * 1000
-         begin_dt <= t < begin_dt + 1 * 60 * 1000
-         open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
-         open_avg_check = sum(trade price * volume) / sum(volume)
+    10s: 这根k线前2秒的trade数据拿出来(比如：00:00:00.000 - 00:00:1.999)，
+        即 begin_dt <= t < begin_dt + 2 * 1000
+        open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+        open_avg_check = sum(trade price * volume) / sum(volume)
+    1min: 这根k线前12秒的trade数据拿出来(比如：00:00:00.000 - 00:00:11.999)，
+        即 begin_dt <= t < begin_dt + 12 * 1000
+        open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+        open_avg_check = sum(trade price * volume) / sum(volume)
+    5min: 这根k线前1分钟的trade数据拿出来(比如：00:00:00.000 - 00:00:59.999)，
+        即 begin_dt <= t < begin_dt + 1 * 60 * 1000
+        begin_dt <= t < begin_dt + 1 * 60 * 1000
+        open_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+        open_avg_check = sum(trade price * volume) / sum(volume)
 10. close_avg:
-   10s: 这根k线后2秒的trade数据拿出来(比如：00:00:8.000 - 00:00:9.999)，
-         即 begin_dt + 8 * 1000 <= t < begin_dt + 10 * 1000
-         close_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
-         close_avg_check = sum(trade price * volume) / sum(volume)
-   1min: 这根k线后12秒的trade数据拿出来(比如：00:00:48.000 - 00:00:59.999)，
-         即 begin_dt + 48 * 1000 <= t < begin_dt + 60 * 1000
-         close_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
-         close_avg_check = sum(trade price * volume) / sum(volume)
-   5min: 这根k线后1分钟的trade数据拿出来(比如：00:04:00.000 - 00:04:59.999)，
-         即 begin_dt + 4 * 60 * 1000 <= t < begin_dt + 5 * 60 * 1000
-         close_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
-         close_avg_check = sum(trade price * volume) / sum(volume)
+    10s: 这根k线后2秒的trade数据拿出来(比如：00:00:8.000 - 00:00:9.999)，
+        即 begin_dt + 8 * 1000 <= t < begin_dt + 10 * 1000
+        close_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+        close_avg_check = sum(trade price * volume) / sum(volume)
+    1min: 这根k线后12秒的trade数据拿出来(比如：00:00:48.000 - 00:00:59.999)，
+        即 begin_dt + 48 * 1000 <= t < begin_dt + 60 * 1000
+        close_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+        close_avg_check = sum(trade price * volume) / sum(volume)
+    5min: 这根k线后1分钟的trade数据拿出来(比如：00:04:00.000 - 00:04:59.999)，
+        即 begin_dt + 4 * 60 * 1000 <= t < begin_dt + 5 * 60 * 1000
+        close_avg = 所有trade数据的amount之和 / 所有trade数据的volume之和
+        close_avg_check = sum(trade price * volume) / sum(volume)
 11. volume = begin_dt 和 end_dt之间的所有trade数据的volume之和
 12. amount = begin_dt 和 end_dt之间的所有的trade数据的amount之和
     amount_check = sum(trade price * volume)
@@ -230,45 +227,45 @@ TABLE t_symbol_info:
     index           index             索引
     primary_key     primary_key       主键,MongoDB自动将_id字段设置为主键
 6.在kline合成过程中，如果对应kline时间段内没有成交量，那么我们也会生成这个kline，只需要在usable这个字段标识它是否可用
-  同时，对于不可用的这个kline里的其他字段取值，方法如下：
-  begin_dt -->类型:64位正整数. 正常
-  end_dt -->类型:64位正整数. 正常
-  open -->类型:float. 备注:开盘价，没有成交量0.0
-  high -->类型:float. 备注:最高价，没有成交量0.0
-  low -->类型:float. 备注:最低价，没有成交量0.0
-  close -->类型:float. 备注:收盘价，没有成交量0.0
-  avg_price -->类型:float. 备注:k线内加权平均价，没有成交量0.0
-  buy_avg_price -->类型:float. 备注:k线内主买加权平均价，如果完全没有成交量，0.0，如果有一些成交量，但是都是主动卖，那么该字段也是0.0，否则正常
-  sell_avg_price -->类型:float. 备注:k线内主卖加权平均价，如果完全没有成交量，0.0，如果有一些成交量，但是都是主动买，那么该字段也是0.0，否则正常
-  open_avg -->类型:float. 备注:开盘一段时间加权平均价，没有成交量0.0
-  close_avg -->类型:float. 备注:收盘一段时间加权平均价，没有成交量0.0
-  volume -->类型:float. 备注:成交量，没有成交量0.0
-  amount -->类型:float. 备注:成交额，没有成交量0.0
-  book_count -->类型:正整数. 备注:成交笔数，没有成交量0
-  buy_book_count -->类型：正整数，备注：主动买成交笔数，如果是完全没有成交量，0，如果有一些成交量，但是都是主动卖，也是0，否则正常
-  sell_book_count -->类型：正整数，备注：主动卖成交笔数，如果是完全没有成交量，0，如果有一些成交量，但是都是主动买，也是0，否则正常
-  buy_volume -->类型:float. 备注:主动买入的成交量，0.0，如果有一些成交量，但是都是主动卖，也是0.0，否则正常
-  buy_amount -->类型:float. 备注:主动买入的成交额，0.0，如果有一些成交量，但是都是主动卖，也是0.0，否则正常
-  sell_volume -->类型:float. 备注:主动卖出的成交量，0.0，如果有一些成交量，但是都是主动买，也是0.0，否则正常
-  sell_amount -->类型:float. 备注:主动卖出的成交额，0.0，如果有一些成交量，但是都是主动卖，也是0.0，否则正常
-  sectional_high -->类型:float. 备注:今日开盘到现在最高价，如果没有成交量，顺延上根k线的该字段值，否则正常
-  sectional_low -->类型:float. 备注:今日开盘到现在最低价，如果没有成交量，顺延上根k线的该字段值，否则正常
-  sectional_volume -->类型:float. 备注:今日开盘到此时总成交量，如果没有成交量，顺延上根k线的该字段值，否则正常
-  sectional_amount -->类型:float. 备注:今日开盘到此时总成交额，如果没有成交量，顺延上根k线的该字段值，否则正常
-  sectional_avg_price -->类型:float. 备注:今日开盘到此时加权平均价，如果没有成交量，顺延上根k线的该字段值，否则正常
-  sectional_buy_avg_price -->类型:float. 备注:今日开盘到此时主买加权平均价，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主卖，也顺延上一根，否则正常
-  sectional_sell_avg_price -->类型:float. 备注:今日开盘到此时主卖加权平均价，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主买，也顺延上一根，否则正常
-  sectional_book_count -->类型:正整数. 备注:今日开盘到此时总成交笔数，如果没有成交量，顺延上根k线的该字段值，否则正常
-  sectional_buy_book_count -->类型:正整数. 备注:今日开盘到此时主动买总成交笔数，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主卖，也顺延上一根，否则正常
-  sectional_sell_book_count -->类型:正整数. 备注:今日开盘到此时主动卖总成交笔数，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主买，也顺延上一根，否则正常
-  sectional_buy_volume -->类型:float. 备注:今日开盘到此时主动买入的成交量，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主卖，也顺延上一根，否则正常
-  sectional_buy_amount -->类型:float. 备注:今日开盘到此时主动买入的成交额，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主卖，也顺延上一根，否则正常
-  sectional_sell_volume -->类型:float. 备注:今日开盘到此时主动卖出的成交量，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主买，也顺延上一根，否则正常
-  sectional_sell_amount -->类型:float. 备注:今日开盘到此时主动卖出的成交额，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主买，也顺延上一根，否则正常
-  prev_close_price -->类型:float. 备注:前一天收盘价，如果前一天没有价格，这根k线该字段设为0.0
-  next_price -->类型:float. 备注:下一个Kline的open_avg，有异常，设为0.0
-  prev_price -->类型:float. 备注:前一个Kline的close_avg，有异常，设为0.0
-  lead_ret -->类型:float. 备注:相对于本bar,未来一个收益率，有异常，设为空值
-  lag_ret -->类型:float. 备注:相对于本bar,之前一个收益率，有异常，设为空值
-  usable: True if volume>0 else False
+    同时，对于不可用的这个kline里的其他字段取值，方法如下：
+    begin_dt -->类型:64位正整数. 正常
+    end_dt -->类型:64位正整数. 正常
+    open -->类型:float. 备注:开盘价，没有成交量0.0
+    high -->类型:float. 备注:最高价，没有成交量0.0
+    low -->类型:float. 备注:最低价，没有成交量0.0
+    close -->类型:float. 备注:收盘价，没有成交量0.0
+    avg_price -->类型:float. 备注:k线内加权平均价，没有成交量0.0
+    buy_avg_price -->类型:float. 备注:k线内主买加权平均价，如果完全没有成交量，0.0，如果有一些成交量，但是都是主动卖，那么该字段也是0.0，否则正常
+    sell_avg_price -->类型:float. 备注:k线内主卖加权平均价，如果完全没有成交量，0.0，如果有一些成交量，但是都是主动买，那么该字段也是0.0，否则正常
+    open_avg -->类型:float. 备注:开盘一段时间加权平均价，没有成交量0.0
+    close_avg -->类型:float. 备注:收盘一段时间加权平均价，没有成交量0.0
+    volume -->类型:float. 备注:成交量，没有成交量0.0
+    amount -->类型:float. 备注:成交额，没有成交量0.0
+    book_count -->类型:正整数. 备注:成交笔数，没有成交量0
+    buy_book_count -->类型：正整数，备注：主动买成交笔数，如果是完全没有成交量，0，如果有一些成交量，但是都是主动卖，也是0，否则正常
+    sell_book_count -->类型：正整数，备注：主动卖成交笔数，如果是完全没有成交量，0，如果有一些成交量，但是都是主动买，也是0，否则正常
+    buy_volume -->类型:float. 备注:主动买入的成交量，0.0，如果有一些成交量，但是都是主动卖，也是0.0，否则正常
+    buy_amount -->类型:float. 备注:主动买入的成交额，0.0，如果有一些成交量，但是都是主动卖，也是0.0，否则正常
+    sell_volume -->类型:float. 备注:主动卖出的成交量，0.0，如果有一些成交量，但是都是主动买，也是0.0，否则正常
+    sell_amount -->类型:float. 备注:主动卖出的成交额，0.0，如果有一些成交量，但是都是主动卖，也是0.0，否则正常
+    sectional_high -->类型:float. 备注:今日开盘到现在最高价，如果没有成交量，顺延上根k线的该字段值，否则正常
+    sectional_low -->类型:float. 备注:今日开盘到现在最低价，如果没有成交量，顺延上根k线的该字段值，否则正常
+    sectional_volume -->类型:float. 备注:今日开盘到此时总成交量，如果没有成交量，顺延上根k线的该字段值，否则正常
+    sectional_amount -->类型:float. 备注:今日开盘到此时总成交额，如果没有成交量，顺延上根k线的该字段值，否则正常
+    sectional_avg_price -->类型:float. 备注:今日开盘到此时加权平均价，如果没有成交量，顺延上根k线的该字段值，否则正常
+    sectional_buy_avg_price -->类型:float. 备注:今日开盘到此时主买加权平均价，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主卖，也顺延上一根，否则正常
+    sectional_sell_avg_price -->类型:float. 备注:今日开盘到此时主卖加权平均价，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主买，也顺延上一根，否则正常
+    sectional_book_count -->类型:正整数. 备注:今日开盘到此时总成交笔数，如果没有成交量，顺延上根k线的该字段值，否则正常
+    sectional_buy_book_count -->类型:正整数. 备注:今日开盘到此时主动买总成交笔数，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主卖，也顺延上一根，否则正常
+    sectional_sell_book_count -->类型:正整数. 备注:今日开盘到此时主动卖总成交笔数，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主买，也顺延上一根，否则正常
+    sectional_buy_volume -->类型:float. 备注:今日开盘到此时主动买入的成交量，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主卖，也顺延上一根，否则正常
+    sectional_buy_amount -->类型:float. 备注:今日开盘到此时主动买入的成交额，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主卖，也顺延上一根，否则正常
+    sectional_sell_volume -->类型:float. 备注:今日开盘到此时主动卖出的成交量，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主买，也顺延上一根，否则正常
+    sectional_sell_amount -->类型:float. 备注:今日开盘到此时主动卖出的成交额，如果没有成交量，顺延上根k线的该字段值，如果有一些成交量，但是只是主买，也顺延上一根，否则正常
+    prev_close_price -->类型:float. 备注:前一天收盘价，如果前一天没有价格，这根k线该字段设为0.0
+    next_price -->类型:float. 备注:下一个Kline的open_avg，有异常，设为0.0
+    prev_price -->类型:float. 备注:前一个Kline的close_avg，有异常，设为0.0
+    lead_ret -->类型:float. 备注:相对于本bar,未来一个收益率，有异常，设为空值
+    lag_ret -->类型:float. 备注:相对于本bar,之前一个收益率，有异常，设为空值
+    usable: True if volume>0 else False
 7. 原则上来说，价格出现异常，设为0.0，成交量或者成交额出现异常，设为0，return出现异常，设为空值

@@ -92,10 +92,12 @@ class FTXRestAPI:
         return await self._request('GET', 'account')
 
     async def get_open_orders(self, market: str = None) -> List[dict]:
-        return await self._request('GET', 'orders', params={'market': market})
+        #return await self._request('GET', 'orders', params={'market': market})
+        return await self._request('GET', 'orders?market={}'.format(market))
 
     async def get_conditional_orders(self, market: str = None) -> List[dict]:
-        return await self._request('GET', 'conditional_orders', params={'market': market})
+        #return await self._request('GET', 'conditional_orders', params={'market': market})
+        return await self._request('GET', 'conditional_orders?market={}'.format(market))
 
     async def place_order(self, market: str, side: str, price: float, size: float, type: str = 'limit',
                     reduce_only: bool = False, ioc: bool = False, post_only: bool = False,
@@ -523,10 +525,15 @@ class FTXTrader(Websocket, ExchangeGateway):
         if info["type"] == "future":
             base_currency = info["underlying"]
             quote_currency = "USD"
+            settlement_currency = "USD"
         else: #"spot"
             base_currency = info["baseCurrency"]
             quote_currency = info["quoteCurrency"]
-        syminfo = SymbolInfo(self._platform, symbol, price_tick, size_tick, size_limit, value_tick, value_limit, base_currency, quote_currency)
+            settlement_currency = info["quoteCurrency"]
+        symbol_type = info["type"]
+        is_inverse = False
+        multiplier = 1
+        syminfo = SymbolInfo(self._platform, symbol, price_tick, size_tick, size_limit, value_tick, value_limit, base_currency, quote_currency, settlement_currency, symbol_type, is_inverse, multiplier)
         return syminfo, None
 
     async def invalid_indicate(self, symbol, indicate_type):

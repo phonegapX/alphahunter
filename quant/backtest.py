@@ -778,7 +778,10 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
         base_currency = info["base_currency"]
         quote_currency = info["quote_currency"]
         settlement_currency = info["settlement_currency"]
-        syminfo = SymbolInfo(self._platform, self._symbol, price_tick, size_tick, size_limit, value_tick, value_limit, base_currency, quote_currency, settlement_currency)
+        symbol_type = info["type"]
+        is_inverse = info["is_inverse"] if info.get("is_inverse") else False
+        multiplier = info["contract_size"] if info.get("contract_size") else 1
+        syminfo = SymbolInfo(self._platform, self._symbol, price_tick, size_tick, size_limit, value_tick, value_limit, base_currency, quote_currency, settlement_currency, symbol_type, is_inverse, multiplier)
         return syminfo, None
 
     async def invalid_indicate(self, indicate_type):

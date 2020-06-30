@@ -1,0 +1,42 @@
+{
+    "MONGODB": {
+        "host": "127.0.0.1",
+        "port": 27017,
+        "username": "root",
+        "password": "123456",
+        "dbname": "admin"
+    },
+    "PROXY": "http://127.0.0.1:6666",
+    "PLATFORMS": [
+        {
+            "platform": "huobi",
+            "account": "test",
+            "access_key": "xxxxxxxxxxxx",
+            "secret_key": "xxxxxxxxxxxx",
+            "symbols": ["BTC/USDT","ETH/USDT","EOS/USDT","LTC/USDT","BCH/USDT","BSV/USDT","XRP/USDT","ETH/BTC","EOS/ETH"]
+        },
+        {
+            "platform": "ftx",
+            "account": "test",
+            "access_key": "xxxxxxxxxxxx",
+            "secret_key": "xxxxxxxxxxxx",
+            "symbols": ["BTC/USDT","BTC/USD","ETH/USD","ETH/BTC","BTC-PERP","ETH-PERP","ETH-0925"]
+        },
+        {
+            "platform": "okex",
+            "account": "test",
+            "access_key": "xxxxxxxxxxxx",
+            "secret_key": "xxxxxxxxxxxx",
+            "passphrase": "mytest",
+            "symbols": ["BTC/USDT","ETH/USDT","EOS/USDT","LTC/USDT","BCH/USDT","BSV/USDT","XRP/USDT","ETH/BTC","EOS/ETH"]
+        },
+        {
+            "platform": "huobi_future",
+            "account": "test",
+            "access_key": "xxxxxxxxxxxx",
+            "secret_key": "xxxxxxxxxxxx",
+            "symbols": ["BTC200925","ETH200925","EOS200925","LTC200925","BCH200925"]
+        }
+    ],
+    "strategy": "sym_info_writer"
+}

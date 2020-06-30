@@ -242,8 +242,8 @@ class HuobiTrader(Websocket, ExchangeGateway):
             SingleTask.run(self.cb.on_state_update_callback, state)
             return
 
-        self._host = "https://api.huobi.io"
-        self._wss = "wss://api.huobi.io"
+        self._host = "https://api.huobi.me"
+        self._wss = "wss://api.huobi.me"
         
         url = self._wss + "/ws/v1"
         super(HuobiTrader, self).__init__(url, send_hb_interval=0, **kwargs)
@@ -518,7 +518,11 @@ class HuobiTrader(Websocket, ExchangeGateway):
         value_limit = info["min-order-value"]
         base_currency = info["base-currency"]
         quote_currency = info["quote-currency"]
-        syminfo = SymbolInfo(self._platform, symbol, price_tick, size_tick, size_limit, value_tick, value_limit, base_currency, quote_currency)
+        settlement_currency = info["quote-currency"]
+        symbol_type = "spot"
+        is_inverse = False
+        multiplier = 1
+        syminfo = SymbolInfo(self._platform, symbol, price_tick, size_tick, size_limit, value_tick, value_limit, base_currency, quote_currency, settlement_currency, symbol_type, is_inverse, multiplier)
         return syminfo, None
 
     async def invalid_indicate(self, symbol, indicate_type):
@@ -573,7 +577,7 @@ class HuobiTrader(Websocket, ExchangeGateway):
             "SignatureVersion": "2",
             "Timestamp": timestamp
         }
-        signature = self._rest_api.generate_signature("GET", params, "api.huobi.io", "/ws/v1")
+        signature = self._rest_api.generate_signature("GET", params, "api.huobi.me", "/ws/v1")
         params["op"] = "auth"
         params["Signature"] = signature
         await self.send_json(params)
@@ -1066,7 +1070,7 @@ class HuobiMarket(Websocket):
         self.cb = kwargs["cb"]
         self._platform = kwargs["platform"]
         self._symbols = kwargs["symbols"]
-        self._wss = "wss://api.huobi.io"
+        self._wss = "wss://api.huobi.me"
         url = self._wss + "/ws"
         super(HuobiMarket, self).__init__(url, send_hb_interval=0, **kwargs)
         #self.heartbeat_msg = "ping"

@@ -701,9 +701,13 @@ class HuobiFutureTrader(Websocket, ExchangeGateway):
         size_limit = 1
         value_tick = None
         value_limit = None
-        base_currency = None
-        quote_currency = None
-        syminfo = SymbolInfo(self._platform, symbol, price_tick, size_tick, size_limit, value_tick, value_limit, base_currency, quote_currency)
+        base_currency = info["symbol"]
+        quote_currency = "USD"
+        settlement_currency = info["symbol"]
+        symbol_type = "future"
+        is_inverse = True
+        multiplier = info["contract_size"]
+        syminfo = SymbolInfo(self._platform, symbol, price_tick, size_tick, size_limit, value_tick, value_limit, base_currency, quote_currency, settlement_currency, symbol_type, is_inverse, multiplier)
         return syminfo, None
 
     async def invalid_indicate(self, symbol, indicate_type):
