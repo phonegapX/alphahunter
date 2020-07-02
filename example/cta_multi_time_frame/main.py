@@ -1,7 +1,7 @@
 # -*- coding:utf-8 -*-
 
 """
-CTA策略
+一个跨时间周期的策略，基于15分钟K线判断趋势方向，并使用5分钟RSI指标作为入场
 
 Project: alphahunter
 Author: HJQuant
@@ -27,12 +27,12 @@ from quant.startup import default_main
 from cta_controller import CTAController
 
 
-class CTAStrategy(CTAController):
+class CTAMultiTimeframeStrategy(CTAController):
 
     def __init__(self):
         """ 初始化
         """
-        super(CTAStrategy, self).__init__()
+        super(CTAMultiTimeframeStrategy, self).__init__()
         
         self.strategy = config.strategy
         
@@ -70,26 +70,20 @@ class CTAStrategy(CTAController):
         #注册定时器
         self.enable_timer(5)  #每隔5秒执行一次回调
 
-        self.init_history_data = False
-
         self.last_kline = None
 
     async def on_time(self):
         """ 每5秒钟执行一次.
         """
-        await super(CTAStrategy, self).on_time()
+        await super(CTAMultiTimeframeStrategy, self).on_time()
 
     async def on_state_update_callback(self, state: State, **kwargs):
         """ 状态变化(底层交易所接口,框架等)通知回调函数
         """
         logger.info("on_state_update_callback:", state, caller=self)
-        
+
         if state.code == State.STATE_CODE_DB_SUCCESS: #数据库连接成功
-            if not self.init_history_data:
-                for symbol in self.symbols:
-                    await self.load_history_data(self.platform, symbol)
-                #读取历史数据完成
-                self.init_history_data = True
+            pass
         elif state.code == State.STATE_CODE_READY: #交易接口准备好
             #收到此状态通知,证明指定交易接口准备就绪,可以对其进行操作,比如下单
             pass
@@ -110,23 +104,19 @@ class CTAStrategy(CTAController):
     async def on_kline_update_callback(self, kline: Kline):
         """ 市场K线更新
         """
-        logger.info("kline:", kline, caller=self)
+        #logger.info("kline:", kline, caller=self)
         self.last_kline = kline
-        
-        #历史数据还没准备好
-        if not self.init_history_data:
-            return
 
         #如果收到的是'交易所提供的K线'而不是'自合成K线'的话就直接忽略
         if not kline.is_custom_and_usable():
             return
-        await super(CTAStrategy, self).on_kline_update_callback(kline)
+        await super(CTAMultiTimeframeStrategy, self).on_kline_update_callback(kline)
 
     async def on_asset_update_callback(self, asset: Asset):
         """ 账户资产更新
         """
         logger.info("asset:", asset, caller=self)
-        await super(CTAStrategy, self).on_asset_update_callback(asset)
+        await super(CTAMultiTimeframeStrategy, self).on_asset_update_callback(asset)
 
     async def on_orderbook_update_callback(self, orderbook: Orderbook): ...
     async def on_trade_update_callback(self, trade: Trade): ...
@@ -162,4 +152,4 @@ class CTAStrategy(CTAController):
 
 
 if __name__ == '__main__':
-    default_main(CTAStrategy)
+    default_main(CTAMultiTimeframeStrategy)

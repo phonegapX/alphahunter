@@ -194,6 +194,11 @@ class Kline:
         """
         return hasattr(self, "usable")
 
+    def is_custom_and_usable(self):
+        """ 判断是自合成K线同时可用
+        """
+        return hasattr(self, "usable") and self.usable
+
 
 class Market:
     """ Subscribe Market.

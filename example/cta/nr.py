@@ -41,7 +41,7 @@ class NrModel(object):
 
         self.target_position = {'BTC':0}
 
-        self.latency = 2*60*1000 # 两分钟
+        self.latency = 2*60*1000 #两分钟
 
     def on_history_kline(self, kline: Kline):
         ''' 加载历史数据'''
@@ -60,6 +60,8 @@ class NrModel(object):
         if self.running_status == 'stopping': #如果是停止状态就不工作了
             return
         now = ModelAPI.current_milli_timestamp()
+        if self.last_kline_end_dt == None:
+            self.last_kline_end_dt = now
         if now - self.last_kline_end_dt > self.latency: #超过2分钟
             self.factor = np.nan
             self.signal = np.nan
