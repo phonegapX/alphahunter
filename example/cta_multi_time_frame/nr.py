@@ -48,7 +48,7 @@ class NrModel(object):
         self.talib15 = TaLib()
         self.kg15 = KlineGenerator(None, const.MARKET_TYPE_KLINE_15M, self.on_15m_kline_update_callback)
 
-    def on_time(self):
+    async def on_time(self):
         ''' 每5秒定时被驱动，检查k线是否断连'''
         if self.running_status == 'stopping': #如果是停止状态就不工作了
             return
@@ -60,16 +60,16 @@ class NrModel(object):
             self.target_position['BTC'] = 0.0
             self.running_status = 'stopping'
 
-    def on_kline_update_callback(self, kline: Kline):
+    async def on_kline_update_callback(self, kline: Kline):
         if self.running_status == 'stopping': #如果是停止状态就不工作了
             return
         if kline.symbol not in self.symbols:
             return
         self.last_kline_end_dt = kline.end_dt
-        self.kg5.update_bar(kline)
-        self.kg15.update_bar(kline)
+        await self.kg5.update_bar(kline)
+        await self.kg15.update_bar(kline)
 
-    def on_5m_kline_update_callback(self, kline: Kline):
+    async def on_5m_kline_update_callback(self, kline: Kline):
         ''' 最新5分钟k线来了，我们需要更新此model的signal'''
         self.talib5.kline_update(kline)
         if not self.talib5.inited:
@@ -96,7 +96,7 @@ class NrModel(object):
                 self.signal = 0
         self.generate_target_position()
 
-    def on_15m_kline_update_callback(self, kline: Kline):
+    async def on_15m_kline_update_callback(self, kline: Kline):
         """15分钟K线推送"""
         self.talib15.kline_update(kline)
         if not self.talib15.inited:

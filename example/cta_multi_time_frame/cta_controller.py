@@ -91,7 +91,7 @@ class CTAController(Strategy):
         """
         #对model循环，获取model最新信号
         for model in self.models:
-            model.on_time()
+            await model.on_time()
 
         #调用model_consolidation, 更新目标仓位等信息
         self.model_consolidation()
@@ -104,7 +104,7 @@ class CTAController(Strategy):
         """
         #对model循环，获取model最新信号
         for model in self.models:
-            model.on_kline_update_callback(kline)
+            await model.on_kline_update_callback(kline)
 
         #调用model_consolidation, 更新目标仓位等信息
         self.model_consolidation()

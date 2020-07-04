@@ -35,7 +35,7 @@ class KlineGenerator(object):
         self.onXminBar = onXminBar  #X分钟K线的回调函数
 
     #----------------------------------------------------------------------
-    def update_trade(self, trade):
+    async def update_trade(self, trade):
         """ 逐笔成交更新
         """
         newMinute = False   #默认不是新的一分钟
@@ -48,7 +48,7 @@ class KlineGenerator(object):
             #生成上一分钟K线的时间戳
             self.bar.timestamp = int(self.bar.timestamp//ONE_MINUTE)*ONE_MINUTE
             #推送已经结束的上一分钟K线
-            self.onBar(self.bar)
+            await self.onBar(self.bar)
             #创建新的K线对象
             self.bar = Kline()
             newMinute = True
@@ -71,7 +71,7 @@ class KlineGenerator(object):
         self.bar.volume += trade.quantity
 
     #----------------------------------------------------------------------
-    def update_bar(self, bar):
+    async def update_bar(self, bar):
         """ 1分钟K线更新
         """
         #尚未创建对象
@@ -96,6 +96,6 @@ class KlineGenerator(object):
         minute = int(bar.timestamp//ONE_MINUTE)
         if not (minute + 1) % self.xmin:   #可以用X整除
             #推送
-            self.onXminBar(self.xminBar)
+            await self.onXminBar(self.xminBar)
             #清空老K线缓存对象
             self.xminBar = None

@@ -188,7 +188,7 @@ class MaModel(object):
         self.talib = TaLib(24) #5*24=120分钟
         self.kg = KlineGenerator(None, const.MARKET_TYPE_KLINE_5M, self.on_5m_kline_update_callback)
 
-    def on_time(self):
+    async def on_time(self):
         ''' 每5秒定时被驱动，检查k线是否断连'''
         if self.running_status == 'stopping': #如果是停止状态就不工作了
             return
@@ -202,15 +202,15 @@ class MaModel(object):
             self.target_position['BTC'] = 0.0
             self.running_status = 'stopping'
 
-    def on_kline_update_callback(self, kline: Kline):
+    async def on_kline_update_callback(self, kline: Kline):
         if self.running_status == 'stopping': #如果是停止状态就不工作了
             return
         if kline.symbol not in self.symbols:
             return
         self.last_kline_end_dt = kline.end_dt
-        self.kg.update_bar(kline)
+        await self.kg.update_bar(kline)
 
-    def on_5m_kline_update_callback(self, kline: Kline):
+    async def on_5m_kline_update_callback(self, kline: Kline):
         ''' 最新5分钟k线来了，我们需要更新此model的signal'''
         self.talib.kline_update(kline)
         if not self.talib.inited:
