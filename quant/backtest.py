@@ -250,16 +250,24 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
         #遍历订单簿里面所有挂单
         os = copy.copy(self._orders)
         for (k, o) in os.items():
+            syminfo = config.backtest["feature"][self._platform]["syminfo"][self._symbol]
+            price_tick = syminfo["price_tick"]   #价格变动最小精度
+            size_tick = syminfo["size_tick"]     #下单数量变动最小精度
+            value_tick = syminfo["value_tick"]   #下单金额变动最小精度
+            base_currency = syminfo["base_currency"] #基础币种,交易标的,或者说就是'货'
+            settlement_currency = syminfo["settlement_currency"] #结算币种,或者说就是'钱'
+            bc = self._trader._assets[base_currency]
+            sc = self._trader._assets[settlement_currency]
+
             if o.action == ORDER_ACTION_BUY: #买单
                 if o.price >= self._last_kline.close_avg_fillna: #当前价格可以成交
                     ts = ModelAPI.current_milli_timestamp()
                     #收盘均价模拟成交价
-                    tradeprice = self._last_kline.close_avg_fillna
-                    tradevolmue = quantity #直接模拟全部成交
+                    tradeprice = tools.nearest(self._last_kline.close_avg_fillna, price_tick)
+                    tradevolmue = o.quantity #直接模拟全部成交
                     trademoney = tradeprice*tradevolmue #成交金额
                     #对于现货交易,手续费是从接收币种里面扣除
                     fee = tradevolmue*self.maker_commission_rate
-                    tradevolmue -= fee
                     #订单通知
                     o.remain = 0
                     o.status = ORDER_STATUS_FILLED
@@ -276,10 +284,10 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                         "order_no": o.order_no,
                         "side": o.action, #成交方向,买还是卖
                         "symbol": self._symbol,
-                        "price": tradeprice, #成交价格
-                        "quantity": tradevolmue, #成交数量
+                        "price": tools.nearest(tradeprice, price_tick), #成交价格
+                        "quantity": tools.nearest(tradevolmue, size_tick), #成交数量
                         "liquidity": LIQUIDITY_TYPE_MAKER, #maker成交还是taker成交
-                        "fee": fee,
+                        "fee": tools.nearest(fee, size_tick),
                         "ctime": ts
                     }
                     fill = Fill(**f)
@@ -287,14 +295,19 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                         await self.cb.on_fill_update_callback(fill)
                     #账户资产通知
                     #'货'增加
-                    bc['free'] += tradevolmue
+                    bc['free'] += (tradevolmue-fee)
+                    bc['free'] = tools.nearest(bc['free'], size_tick)
                     bc['total'] = bc['free'] + bc['locked']
+                    bc['total'] = tools.nearest(bc['total'], size_tick)
                     #释放挂单占用的'钱'
                     sc['locked'] -= o.quantity*o.price
+                    sc['locked'] = tools.nearest(sc['locked'], value_tick)
                     sc['free'] = sc['total'] - sc['locked']
                     #'钱'减少
                     sc['free'] -= trademoney
+                    sc['free'] = tools.nearest(sc['free'], value_tick)
                     sc['total'] = sc['free'] + sc['locked']
+                    sc['total'] = tools.nearest(sc['total'], value_tick)
                     #
                     ast = Asset(self._platform, self._account, self._trader._assets, ts, True)
                     if self.cb.on_asset_update_callback:
@@ -305,7 +318,7 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                 if o.price <= self._last_kline.close_avg_fillna: #当前价格可以成交
                     ts = ModelAPI.current_milli_timestamp()
                     #收盘均价模拟成交价
-                    tradeprice = self._last_kline.close_avg_fillna
+                    tradeprice = tools.nearest(self._last_kline.close_avg_fillna, price_tick)
                     trademoney = o.quantity*tradeprice #模拟全部成交
                     #对于现货交易,手续费是从接收币种里面扣除
                     fee = trademoney*self.maker_commission_rate
@@ -326,10 +339,10 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                         "order_no": o.order_no,
                         "side": o.action, #成交方向,买还是卖
                         "symbol": self._symbol,
-                        "price": tradeprice, #成交价格
-                        "quantity": o.quantity, #成交数量
+                        "price": tools.nearest(tradeprice, price_tick), #成交价格
+                        "quantity": tools.nearest(o.quantity, size_tick), #成交数量
                         "liquidity": LIQUIDITY_TYPE_MAKER, #maker成交还是taker成交
-                        "fee": fee,
+                        "fee": tools.nearest(fee, value_tick),
                         "ctime": ts
                     }
                     fill = Fill(**f)
@@ -338,13 +351,18 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     #账户资产通知
                     #释放挂单占用的'货'
                     bc['locked'] -= o.quantity
+                    bc['locked'] = tools.nearest(bc['locked'], size_tick)
                     bc['free'] = bc['total'] - bc['locked']
                     #'货'减少
                     bc['free'] -= o.quantity
+                    bc['free'] = tools.nearest(bc['free'], size_tick)
                     bc['total'] = bc['free'] + bc['locked']
+                    bc['total'] = tools.nearest(bc['total'], size_tick)
                     #'钱'增加
                     sc['free'] += trademoney
+                    sc['free'] = tools.nearest(sc['free'], value_tick)
                     sc['total'] = sc['free'] + sc['locked']
+                    sc['total'] = tools.nearest(sc['total'], value_tick)
                     #
                     ast = Asset(self._platform, self._account, self._trader._assets, ts, True)
                     if self.cb.on_asset_update_callback:
@@ -408,12 +426,11 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                 if quantity > sc['free']:
                     return None, "账户余额不够"
                 #收盘均价模拟成交价
-                tradeprice = self._last_kline.close_avg_fillna
+                tradeprice = tools.nearest(self._last_kline.close_avg_fillna, price_tick)
                 #市价买单quantity指的是'钱'
                 tradevolmue = quantity/tradeprice
                 #对于现货交易,手续费是从接收币种里面扣除
                 fee = tradevolmue*self.taker_commission_rate
-                tradevolmue -= fee
                 #订单通知
                 order_no = self.next_order_no()
                 o = {
@@ -424,7 +441,7 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     "action": action,
                     "symbol": self._symbol,
                     "price": 0,
-                    "quantity": quantity,
+                    "quantity": tools.nearest(quantity, value_tick),
                     "remain": 0,
                     "status": ORDER_STATUS_FILLED,
                     "order_type": order_type,
@@ -446,10 +463,10 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     "order_no": order_no,
                     "side": action, #成交方向,买还是卖
                     "symbol": self._symbol,
-                    "price": tradeprice, #成交价格
-                    "quantity": tradevolmue, #成交数量
+                    "price": tools.nearest(tradeprice, price_tick), #成交价格
+                    "quantity": tools.nearest(tradevolmue, size_tick), #成交数量
                     "liquidity": LIQUIDITY_TYPE_TAKER, #maker成交还是taker成交
-                    "fee": fee,
+                    "fee": tools.nearest(fee, size_tick),
                     "ctime": ts
                 }
                 fill = Fill(**f)
@@ -457,11 +474,15 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     await self.cb.on_fill_update_callback(fill)
                 #账户资产通知
                 #'货'增加
-                bc['free'] += tradevolmue
+                bc['free'] += (tradevolmue-fee)
+                bc['free'] = tools.nearest(bc['free'], size_tick)
                 bc['total'] = bc['free'] + bc['locked']
+                bc['total'] = tools.nearest(bc['total'], size_tick)
                 #'钱'减少
                 sc['free'] -= quantity #市价买单quantity指的是'钱'
+                sc['free'] = tools.nearest(sc['free'], value_tick)
                 sc['total'] = sc['free'] + sc['locked']
+                sc['total'] = tools.nearest(sc['total'], value_tick)
                 #
                 ast = Asset(self._platform, self._account, self._trader._assets, ts, True)
                 if self.cb.on_asset_update_callback:
@@ -472,7 +493,7 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                 if quantity > bc['free']:
                     return None, "账户币不足"
                 #收盘均价模拟成交价
-                tradeprice = self._last_kline.close_avg_fillna
+                tradeprice = tools.nearest(self._last_kline.close_avg_fillna, price_tick)
                 trademoney = quantity*tradeprice
                 #对于现货交易,手续费是从接收币种里面扣除
                 fee = trademoney*self.taker_commission_rate
@@ -487,7 +508,7 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     "action": action,
                     "symbol": self._symbol,
                     "price": 0,
-                    "quantity": quantity,
+                    "quantity": tools.nearest(quantity, size_tick),
                     "remain": 0,
                     "status": ORDER_STATUS_FILLED,
                     "order_type": order_type,
@@ -509,10 +530,10 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     "order_no": order_no,
                     "side": action, #成交方向,买还是卖
                     "symbol": self._symbol,
-                    "price": tradeprice, #成交价格
-                    "quantity": quantity, #成交数量
+                    "price": tools.nearest(tradeprice, price_tick), #成交价格
+                    "quantity": tools.nearest(quantity, size_tick), #成交数量
                     "liquidity": LIQUIDITY_TYPE_TAKER, #maker成交还是taker成交
-                    "fee": fee,
+                    "fee": tools.nearest(fee, value_tick),
                     "ctime": ts
                 }
                 fill = Fill(**f)
@@ -521,10 +542,14 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                 #账户资产通知
                 #'货'减少
                 bc['free'] -= quantity
+                bc['free'] = tools.nearest(bc['free'], size_tick)
                 bc['total'] = bc['free'] + bc['locked']
+                bc['total'] = tools.nearest(bc['total'], size_tick)
                 #'钱'增加
                 sc['free'] += trademoney
+                sc['free'] = tools.nearest(sc['free'], value_tick)
                 sc['total'] = sc['free'] + sc['locked']
+                sc['total'] = tools.nearest(sc['total'], value_tick)
                 #
                 ast = Asset(self._platform, self._account, self._trader._assets, ts, True)
                 if self.cb.on_asset_update_callback:
@@ -546,9 +571,9 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                         "order_no": order_no,
                         "action": action,
                         "symbol": self._symbol,
-                        "price": price,
-                        "quantity": quantity,
-                        "remain": quantity,
+                        "price": tools.nearest(price, price_tick),
+                        "quantity": tools.nearest(quantity, size_tick),
+                        "remain": tools.nearest(quantity, size_tick),
                         "status": ORDER_STATUS_SUBMITTED,
                         "order_type": order_type,
                         "ctime": ts,
@@ -563,19 +588,20 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     #账户资产通知
                     #'钱'需要被锁定一部分
                     sc['locked'] += quantity*price #挂单部分所占用的资金需要被锁定
+                    sc['locked'] = tools.nearest(sc['locked'], value_tick)
                     sc['free'] = sc['total'] - sc['locked']
+                    sc['free'] = tools.nearest(sc['free'], value_tick)
                     #
                     ast = Asset(self._platform, self._account, self._trader._assets, ts, True)
                     if self.cb.on_asset_update_callback:
                         await self.cb.on_asset_update_callback(ast)
                 else: #直接成交
                     #收盘均价模拟成交价
-                    tradeprice = self._last_kline.close_avg_fillna
+                    tradeprice = tools.nearest(self._last_kline.close_avg_fillna, price_tick)
                     tradevolmue = quantity #直接模拟全部成交
                     trademoney = tradeprice*tradevolmue #成交金额
                     #对于现货交易,手续费是从接收币种里面扣除
                     fee = tradevolmue*self.taker_commission_rate
-                    tradevolmue -= fee
                     #订单通知
                     order_no = self.next_order_no()
                     o = {
@@ -585,8 +611,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                         "order_no": order_no,
                         "action": action,
                         "symbol": self._symbol,
-                        "price": price,
-                        "quantity": quantity,
+                        "price": tools.nearest(price, price_tick),
+                        "quantity": tools.nearest(quantity, size_tick),
                         "remain": 0,
                         "status": ORDER_STATUS_FILLED,
                         "order_type": order_type,
@@ -608,10 +634,10 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                         "order_no": order_no,
                         "side": action, #成交方向,买还是卖
                         "symbol": self._symbol,
-                        "price": tradeprice, #成交价格
-                        "quantity": tradevolmue, #成交数量
+                        "price": tools.nearest(tradeprice, price_tick), #成交价格
+                        "quantity": tools.nearest(tradevolmue, size_tick), #成交数量
                         "liquidity": LIQUIDITY_TYPE_TAKER, #maker成交还是taker成交
-                        "fee": fee,
+                        "fee": tools.nearest(fee, size_tick),
                         "ctime": ts
                     }
                     fill = Fill(**f)
@@ -619,11 +645,15 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                         await self.cb.on_fill_update_callback(fill)
                     #账户资产通知
                     #'货'增加
-                    bc['free'] += tradevolmue
+                    bc['free'] += (tradevolmue-fee)
+                    bc['free'] = tools.nearest(bc['free'], size_tick)
                     bc['total'] = bc['free'] + bc['locked']
+                    bc['total'] = tools.nearest(bc['total'], size_tick)
                     #'钱'减少
                     sc['free'] -= trademoney
+                    sc['free'] = tools.nearest(sc['free'], value_tick)
                     sc['total'] = sc['free'] + sc['locked']
+                    sc['total'] = tools.nearest(sc['total'], value_tick)
                     #
                     ast = Asset(self._platform, self._account, self._trader._assets, ts, True)
                     if self.cb.on_asset_update_callback:
@@ -644,9 +674,9 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                         "order_no": order_no,
                         "action": action,
                         "symbol": self._symbol,
-                        "price": price,
-                        "quantity": quantity,
-                        "remain": quantity,
+                        "price": tools.nearest(price, price_tick),
+                        "quantity": tools.nearest(quantity, size_tick),
+                        "remain": tools.nearest(quantity, size_tick),
                         "status": ORDER_STATUS_SUBMITTED,
                         "order_type": order_type,
                         "ctime": ts,
@@ -661,14 +691,16 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     #账户资产通知
                     #'货'需要被锁定一部分
                     bc['locked'] += quantity #挂单部分所占用的'货'需要被锁定
+                    bc['locked'] = tools.nearest(bc['locked'], size_tick)
                     bc['free'] = bc['total'] - bc['locked']
+                    bc['free'] = tools.nearest(bc['free'], size_tick)
                     #
                     ast = Asset(self._platform, self._account, self._trader._assets, ts, True)
                     if self.cb.on_asset_update_callback:
                         await self.cb.on_asset_update_callback(ast)
                 else: #直接成交
                     #收盘均价模拟成交价
-                    tradeprice = self._last_kline.close_avg_fillna
+                    tradeprice = tools.nearest(self._last_kline.close_avg_fillna, price_tick)
                     trademoney = quantity*tradeprice
                     #对于现货交易,手续费是从接收币种里面扣除
                     fee = trademoney*self.taker_commission_rate
@@ -682,8 +714,8 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                         "order_no": order_no,
                         "action": action,
                         "symbol": self._symbol,
-                        "price": price,
-                        "quantity": quantity,
+                        "price": tools.nearest(price, price_tick),
+                        "quantity": tools.nearest(quantity, size_tick),
                         "remain": 0,
                         "status": ORDER_STATUS_FILLED,
                         "order_type": order_type,
@@ -705,10 +737,10 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                         "order_no": order_no,
                         "side": action, #成交方向,买还是卖
                         "symbol": self._symbol,
-                        "price": tradeprice, #成交价格
-                        "quantity": quantity, #成交数量
+                        "price": tools.nearest(tradeprice, price_tick), #成交价格
+                        "quantity": tools.nearest(quantity, size_tick), #成交数量
                         "liquidity": LIQUIDITY_TYPE_TAKER, #maker成交还是taker成交
-                        "fee": fee,
+                        "fee": tools.nearest(fee, value_tick),
                         "ctime": ts
                     }
                     fill = Fill(**f)
@@ -717,10 +749,14 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     #账户资产通知
                     #'货'减少
                     bc['free'] -= quantity
+                    bc['free'] = tools.nearest(bc['free'], size_tick)
                     bc['total'] = bc['free'] + bc['locked']
+                    bc['total'] = tools.nearest(bc['total'], size_tick)
                     #'钱'增加
                     sc['free'] += trademoney
+                    sc['free'] = tools.nearest(sc['free'], value_tick)
                     sc['total'] = sc['free'] + sc['locked']
+                    sc['total'] = tools.nearest(sc['total'], value_tick)
                     #
                     ast = Asset(self._platform, self._account, self._trader._assets, ts, True)
                     if self.cb.on_asset_update_callback:

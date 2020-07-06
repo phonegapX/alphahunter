@@ -67,6 +67,9 @@ class CTAStrategy(CTAController):
             "direct_ticker_update": False
         }
         self.gw = self.create_gateway(**params)
+        
+        self.syminfo = None
+        
         #注册定时器
         self.enable_timer(5)  #每隔5秒执行一次回调
 
@@ -92,7 +95,7 @@ class CTAStrategy(CTAController):
                 self.init_history_data = True
         elif state.code == State.STATE_CODE_READY: #交易接口准备好
             #收到此状态通知,证明指定交易接口准备就绪,可以对其进行操作,比如下单
-            pass
+            self.syminfo, e = await self.get_symbol_info(self.gw, self.symbols[0])
         elif state.code == State.STATE_CODE_CONNECT_SUCCESS:    #交易接口连接成功
             pass #仅仅是通知一下,实际策略可以不用过于关注此状态
         elif state.code == State.STATE_CODE_CONNECT_FAILED:     #交易接口连接失败
@@ -110,7 +113,7 @@ class CTAStrategy(CTAController):
     async def on_kline_update_callback(self, kline: Kline):
         """ 市场K线更新
         """
-        logger.info("kline:", kline, caller=self)
+        #logger.info("kline:", kline, caller=self)
         self.last_kline = kline
         
         #历史数据还没准备好
@@ -146,19 +149,17 @@ class CTAStrategy(CTAController):
     async def submit_orders(self, delta_position):
         """ 根据当前最新的delta_position来执行下单操作
         """
-        x = delta_position['BTC'] #下单量
-        vol = abs(x)
-        if vol > 0.001: #如果下单量太小就不下单
-            if x > 0: #做多
-                vol = tools.decimal_truncate(vol, 4) #保留4位小数
-                s, e = await self.create_order(self.gw, self.symbols[0], ORDER_ACTION_BUY, self.last_kline.close+100, vol) #限价单模拟市价单
-                if e:
-                    logger.error("error:", e, caller=self)
-            elif x < 0: #做空
-                vol = tools.decimal_truncate(vol, 4) #保留4位小数
-                s, e = await self.create_order(self.gw, self.symbols[0], ORDER_ACTION_SELL, self.last_kline.close-100, vol) #限价单模拟市价单
-                if e:
-                    logger.error("error:", e, caller=self)
+        delta = tools.nearest(delta_position['BTC'], self.syminfo.size_tick) #下单量
+        if abs(delta) < 0.01: #原因是现货买入交易手续费从'货'中扣,极为恶心的设计
+            return
+        if delta > 0: #做多
+            s, e = await self.create_order(self.gw, self.symbols[0], ORDER_ACTION_BUY, self.last_kline.close+100, abs(delta)) #限价单模拟市价单
+            if e:
+                logger.error("error:", e, caller=self)
+        elif delta < 0: #做空
+            s, e = await self.create_order(self.gw, self.symbols[0], ORDER_ACTION_SELL, self.last_kline.close-100, abs(delta)) #限价单模拟市价单
+            if e:
+                logger.error("error:", e, caller=self)
 
 
 if __name__ == '__main__':

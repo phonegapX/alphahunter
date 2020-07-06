@@ -204,6 +204,15 @@ def decimal_truncate(f, ndigits, rounding=False):
         return int(f * base) / base
 
 
+def nearest(num, tick_size):
+    """Given a number, round it to the nearest tick. Very useful for sussing float error
+       out of numbers: e.g. nearest(401.46, 0.01) -> 401.46, whereas processing is
+       normally with floats would give you 401.46000000000004.
+       Use this after adding/subtracting/multiplying numbers."""
+    tick_dec = decimal.Decimal(str(tick_size))
+    return float((decimal.Decimal(round(num / tick_size, 0)) * tick_dec))
+
+
 def create_dir(filename):
     """
     Create dir if directory of filename does not exist.
@@ -216,10 +225,11 @@ def create_dir(filename):
     if not os.path.exists(os.path.dirname(filename)):
         try:
             os.makedirs(os.path.dirname(filename))
-        except OSError as exc:  # Guard against race condition
+        except OSError as exc:  #Guard against race condition
             if exc.errno != errno.EEXIST:
                 raise
 
 
 #print(decimal_truncate(100.12345, 4))
 #print(decimal_truncate(100.12345, 4, True))
+#print(nearest(401.4607000231, 0.001))

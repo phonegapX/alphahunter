@@ -44,9 +44,6 @@ class CTAController(Strategy):
         #NrModel关心‘btc’，所以主策略也会关心
         self.coins = ['BTC']
 
-        #主策略计价货币：指定这个主策略是以usdt为计价货币
-        self.quote_asset = 'USDT'
-
         #初始资产列表
         self.init_assets = None
 

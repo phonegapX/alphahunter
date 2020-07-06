@@ -30,8 +30,8 @@
         }
     ],
     "BACKTEST": {
-        "start_time": "2020-04-27",
-        "period_day": "30",
+        "start_time": "2020-04-10",
+        "period_day": "70",
         "drive_type": ["kline"],
         "feature": {
             "huobi": {
@@ -39,10 +39,10 @@
                     "BTC/USDT": {
                         "type": "spot",
                         "price_tick": 0.01,
-                        "size_tick": 0.0001,
-                        "size_limit": 0.0001,
-                        "value_tick": 1,
-                        "value_limit": 10,
+                        "size_tick": 0.00001,
+                        "size_limit": 0.01,
+                        "value_tick": 0.01,
+                        "value_limit": 100,
                         "base_currency": "BTC",
                         "quote_currency": "USDT",
                         "settlement_currency": "USDT"

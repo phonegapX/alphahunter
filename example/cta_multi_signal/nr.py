@@ -41,7 +41,7 @@ class RsiModel(object):
 
         self.talib = TaLib()
 
-    def on_time(self):
+    async def on_time(self):
         ''' 每5秒定时被驱动，检查k线是否断连'''
         if self.running_status == 'stopping': #如果是停止状态就不工作了
             return
@@ -54,7 +54,7 @@ class RsiModel(object):
             self.target_position['BTC'] = 0.0
             self.running_status = 'stopping'
 
-    def on_kline_update_callback(self, kline: Kline):
+    async def on_kline_update_callback(self, kline: Kline):
         ''' 最新1分钟k线来了，我们需要更新此model的signal'''
         if self.running_status == 'stopping': #如果是停止状态就不工作了
             return
@@ -114,7 +114,7 @@ class CciModel(object):
 
         self.talib = TaLib()
 
-    def on_time(self):
+    async def on_time(self):
         ''' 每5秒定时被驱动，检查k线是否断连'''
         if self.running_status == 'stopping': #如果是停止状态就不工作了
             return
@@ -127,7 +127,7 @@ class CciModel(object):
             self.target_position['BTC'] = 0.0
             self.running_status = 'stopping'
 
-    def on_kline_update_callback(self, kline: Kline):
+    async def on_kline_update_callback(self, kline: Kline):
         ''' 最新1分钟k线来了，我们需要更新此model的signal'''
         if self.running_status == 'stopping': #如果是停止状态就不工作了
             return

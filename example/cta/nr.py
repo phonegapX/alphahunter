@@ -39,7 +39,7 @@ class NrModel(object):
         self.factor = np.nan
         self.signal = np.nan #model返回的信号值，这个值是介于-1.0到1.0之间的一个浮点数
 
-        self.target_position = {'BTC':0}
+        self.target_position = {'BTC': 0}
 
         self.latency = 2*60*1000 #两分钟
 
