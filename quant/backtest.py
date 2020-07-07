@@ -378,6 +378,14 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
         else:
             return False
 
+    def market_buy_order_cross(self, money, price, size_tick):
+        shares = int(1/size_tick) #按最小量分成N份
+        p = price/shares #每一份最小量的价格
+        cnt = money//p #地板除法取整数,一共可买多少份‘最小值’
+        tradevolmue = size_tick*cnt #成交量
+        left = money - tradevolmue*price #还剩多少钱
+        return tradevolmue, left
+
     async def create_order(self, action, price, quantity, order_type=ORDER_TYPE_LIMIT):
         """ 下单
         """
@@ -427,8 +435,10 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     return None, "账户余额不够"
                 #收盘均价模拟成交价
                 tradeprice = tools.nearest(self._last_kline.close_avg_fillna, price_tick)
+                #市价买单quantity指的是'钱',逼真模拟
+                tradevolmue, left_money = self.market_buy_order_cross(quantity, tradeprice, size_tick)
                 #市价买单quantity指的是'钱'
-                tradevolmue = quantity/tradeprice
+                #tradevolmue = quantity/tradeprice
                 #对于现货交易,手续费是从接收币种里面扣除
                 fee = tradevolmue*self.taker_commission_rate
                 #订单通知
@@ -442,7 +452,7 @@ class SimpleSpotMatchEngine(BaseMatchEngine):
                     "symbol": self._symbol,
                     "price": 0,
                     "quantity": tools.nearest(quantity, value_tick),
-                    "remain": 0,
+                    "remain": tools.nearest(left_money, value_tick),
                     "status": ORDER_STATUS_FILLED,
                     "order_type": order_type,
                     "ctime": ts,

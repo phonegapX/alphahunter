@@ -218,15 +218,19 @@ class Analyzer(object):
             gp_df['CumVolume'] = quantity.cumsum()
             gp_df['CumTurnOver'] = turnover.cumsum()
             gp_df['CumNetTurnOver'] = (turnover * -direction).cumsum() #累计净成交额
-            gp_df['position'] = (quantity * direction).cumsum() #累计净成交量(当前持仓)
+            gp_df['CumNetVolume'] = (quantity * direction).cumsum() #累计净成交量
             if is_spot: #现货
-                gp_df['CumProfit'] = (gp_df['CumNetTurnOver'] + gp_df['position'] * price) #累计净成交额+累计净成交量*成交价=累计盈亏(没计算手续费)
+                gp_df['CumProfit'] = (gp_df['CumNetTurnOver'] + gp_df['CumNetVolume'] * price) #累计净成交额+累计净成交量*成交价=累计盈亏(没计算手续费)
+                quantity -= (direction + 1) / 2 * gp_df['fee'] #现货买入是从'货'里面扣手续费
+                gp_df['position'] = (quantity * direction).cumsum() #去掉手续费后进行计算才是真实仓位
             elif is_future: #期货
                 if is_inverse: #反向合约
-                    #gp_df['CumProfit'] = (gp_df['CumNetTurnOver'] + gp_df['position'] * mult / price) #比如BTC+BTC
+                    #gp_df['CumProfit'] = (gp_df['CumNetTurnOver'] + gp_df['CumNetVolume'] * mult / price) #比如BTC+BTC
+                    #gp_df['position'] = gp_df['CumNetVolume']
                     pass
                 else: #正向合约
-                    gp_df['CumProfit'] = (gp_df['CumNetTurnOver'] + gp_df['position'] * price * mult) #比如USDT+USDT
+                    gp_df['CumProfit'] = (gp_df['CumNetTurnOver'] + gp_df['CumNetVolume'] * price * mult) #比如USDT+USDT
+                    gp_df['position'] = gp_df['CumNetVolume']
             return gp_df
         #按交易符号分组处理
         gp = df.groupby(by=['platform', 'symbol'])
@@ -239,12 +243,12 @@ class Analyzer(object):
         trade = self.trades
 
         # pro-process
-        trade_cols = ['trade_date', 'BuyVolume', 'SellVolume', 'commission', 'position', 'CumNetTurnOver', 'TurnOver']
+        trade_cols = ['trade_date', 'BuyVolume', 'SellVolume', 'commission', 'CumNetVolume', 'CumNetTurnOver', 'position', 'TurnOver']
         trade = trade.loc[:, trade_cols] #只留下需要的列
         gp = trade.reset_index().groupby(by=['platform', 'symbol', 'trade_date']) #按天分组
         func_last = lambda ser: ser.iat[-1]
         df = gp.agg({'BuyVolume': np.sum, 'SellVolume': np.sum, 'commission': np.sum, 'TurnOver': np.sum,
-                        'position': func_last, 'CumNetTurnOver': func_last}) #按日统计
+                     'CumNetVolume': func_last, 'CumNetTurnOver': func_last, 'position': func_last}) #按日统计
         df.index.names = ['platform', 'symbol', 'trade_date']
         #
         df = pd.concat([close, df], axis=1, join='outer') #和每日收盘价连接到一起,如果某一天没有成交,下面会填默认值
@@ -265,7 +269,7 @@ class Analyzer(object):
                 is_inverse = syminfo["is_inverse"]
             #----------------------------------------------
             #如果某一天没有成交,填默认值
-            cols_nan_fill = ['close', 'position', 'CumNetTurnOver']
+            cols_nan_fill = ['close', 'CumNetVolume', 'CumNetTurnOver', 'position']
             gp_df[cols_nan_fill] = gp_df[cols_nan_fill].fillna(method='ffill')
             gp_df[cols_nan_fill] = gp_df[cols_nan_fill].fillna(0)
             #如果某一天没有成交,填默认值
@@ -276,40 +280,39 @@ class Analyzer(object):
             #
             close = gp_df['close']
             commission = gp_df['commission']
+            cum_net_volume = gp_df['CumNetVolume']
             cum_net_turnOver = gp_df['CumNetTurnOver']
-            position = gp_df['position']
-
             if is_spot: #现货
-                cum_profit = cum_net_turnOver + position * close
+                cum_profit = cum_net_turnOver + cum_net_volume * close
             elif is_future: #期货
                 mult = syminfo['contract_size'] #合约乘数
                 if is_inverse: #反向合约
-                    #cum_profit = cum_net_turnOver + mult * position / close
+                    #cum_profit = cum_net_turnOver + mult * cum_net_volume / close
                     pass
                 else: #正向合约
-                    cum_profit = cum_net_turnOver + mult * position * close
+                    cum_profit = cum_net_turnOver + mult * cum_net_volume * close
             #
             cum_profit_comm = cum_profit - commission.cumsum()
             gp_df['CumProfit'] = cum_profit #累计盈亏
             gp_df['CumProfitComm'] = cum_profit_comm #计算了手续费后的累计盈亏
             #
-            daily_net_turnover = cum_net_turnOver.diff(1)
-            daily_net_turnover.iloc[0] = cum_net_turnOver.iloc[0]
+            daily_cum_net_turnover_change = cum_net_turnOver.diff(1)
+            daily_cum_net_turnover_change.iloc[0] = cum_net_turnOver.iloc[0]
             #
-            daily_position_change = position.diff(1)
-            daily_position_change.iloc[0] = position.iloc[0]
+            daily_cum_net_volume_change = cum_net_volume.diff(1)
+            daily_cum_net_volume_change.iloc[0] = cum_net_volume.iloc[0]
             if is_spot: #现货
-                trading_pnl = (daily_net_turnover + close * daily_position_change - commission) #每日交易盈亏(重点:指的是每日)
-                holding_pnl = (close.diff(1) * position.shift(1)).fillna(0.0) #每日持仓盈亏(重点:指的是每日)
+                trading_pnl = (daily_cum_net_turnover_change + close * daily_cum_net_volume_change - commission) #每日交易盈亏(重点:指的是每日)
+                holding_pnl = (close.diff(1) * cum_net_volume.shift(1)).fillna(0.0) #每日持仓盈亏(重点:指的是每日)
             elif is_future: #期货
                 if is_inverse: #反向合约
-                    #trading_pnl = (daily_net_turnover + mult * daily_position_change / close - commission)
-                    #mult * position.shift(1) / close
-                    #holding_pnl = (mult * position.shift(1) / close.diff(1)).fillna(0.0)
+                    #trading_pnl = (daily_cum_net_turnover_change + mult * daily_cum_net_volume_change / close - commission)
+                    #mult * cum_net_volume.shift(1) / close
+                    #holding_pnl = (mult * cum_net_volume.shift(1) / close.diff(1)).fillna(0.0)
                     pass
                 else: #正向合约
-                    trading_pnl = (daily_net_turnover + mult * close * daily_position_change - commission)
-                    holding_pnl = (mult * close.diff(1) * position.shift(1)).fillna(0.0)
+                    trading_pnl = (daily_cum_net_turnover_change + mult * close * daily_cum_net_volume_change - commission)
+                    holding_pnl = (mult * close.diff(1) * cum_net_volume.shift(1)).fillna(0.0)
             #
             total_pnl = trading_pnl + holding_pnl
             gp_df['trading_pnl'] = trading_pnl #每日交易盈亏(重点:指的是每日)
@@ -319,6 +322,8 @@ class Analyzer(object):
         #按交易符号分组处理
         gp = df.groupby(by=['platform', 'symbol'])
         self.daily = gp.apply(_apply)
+        #
+        self.daily = self.daily.drop(['CumNetVolume', 'CumNetTurnOver'], axis=1)
         #报告输出的时候需要用到
         gp = self.daily.groupby(by=['platform', 'symbol'])
         for key, value in gp:
@@ -406,6 +411,7 @@ class Analyzer(object):
         self.performance_metrics['Daily Win Rate(%)']  = win_rate*100
         self.performance_metrics['Daily Lose Rate(%)'] = lose_rate*100
         self.performance_metrics['Commission']         = df_pnl.loc[:,'commission'].sum()
+        self.performance_metrics['TurnOver']           = df_pnl.loc[:,'TurnOver'].sum()
         #贝塔值与最大回撤
         self.risk_metrics['Beta'] = np.corrcoef(df_returns.loc[:, 'bench'], df_returns.loc[:, 'strat'])[0, 1]
         self.risk_metrics['Maximum Drawdown (%)']   = max_dd * TO_PCT
@@ -419,6 +425,7 @@ class Analyzer(object):
         self.performance_metrics_report.append(('Sharpe Ratio',             "{:,.2f}".format(self.performance_metrics['Sharpe Ratio']))          )
         self.performance_metrics_report.append(('Total PNL',                "{:,.2f}".format(self.performance_metrics['Total PNL']))             )
         self.performance_metrics_report.append(('Commission',               "{:,.2f}".format(self.performance_metrics['Commission']))            )
+        self.performance_metrics_report.append(('TurnOver',                 "{:,.2f}".format(self.performance_metrics['TurnOver']))              )
         self.performance_metrics_report.append(('Number of Trades',         self.performance_metrics['Number of Trades'])                        )
         self.performance_metrics_report.append(('Daily Win Rate(%)',        "{:,.2f}".format(self.performance_metrics['Daily Win Rate(%)']))     )
         self.performance_metrics_report.append(('Daily Lose Rate(%)',       "{:,.2f}".format(self.performance_metrics['Daily Lose Rate(%)']))    )
