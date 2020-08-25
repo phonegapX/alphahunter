@@ -39,7 +39,7 @@ class DataMatrixDemo(Strategy):
 
         self.platform = config.platforms[0]["platform"] #交易所
         self.symbols = config.platforms[0]["symbols"]
-        # 交易模块参数
+        #交易模块参数
         params = {
             "strategy": config.strategy,
             "platform": self.platform,

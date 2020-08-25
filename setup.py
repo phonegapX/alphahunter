@@ -5,14 +5,16 @@ from setuptools import setup
 
 setup(
     name="alphahunter",
-    version="0.1.1",
+    version="0.9.1",
     packages=[
         "quant",
         "quant.utils",
         "quant.platform",
     ],
     description="Asynchronous driven quantitative trading framework.",
+    url="https://github.com/phonegapx/alphahunter",
     author="HJQuant",
+    author_email="8342537@qq.com",
     license="MIT",
     keywords=[
         "alphahunter", "quant", "framework", "async", "asynchronous", "digiccy", "digital", "currency",
